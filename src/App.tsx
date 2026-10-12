@@ -1199,7 +1199,7 @@ export default function App() {
                 <SelectField
                   label="Cuadrante / categoría"
                   onValueChange={(value) => setCategory(value as DomainId)}
-                    options={domains.map((domain) => ({
+                    options={initialDomains.map((domain) => ({
                       label: domain.title,
                       value: domain.id,
                     }))}
