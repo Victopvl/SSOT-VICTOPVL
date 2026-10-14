@@ -5,8 +5,26 @@ import {
   updateGymRoutine,
   deleteGymRoutine,
   logGymSet,
+  fetchTkdProfile,
+  upsertTkdProfile,
+  fetchTkdPoomsaes,
+  createTkdPoomsae,
+  updateTkdPoomsae,
+  deleteTkdPoomsae,
+  fetchTkdCompetitions,
+  createTkdCompetition,
+  updateTkdCompetition,
+  deleteTkdCompetition,
+  fetchTkdGoals,
+  createTkdGoal,
+  toggleTkdGoal,
+  deleteTkdGoal,
   type GymRoutine,
   type GymSetLog,
+  type TkdProfile,
+  type TkdPoomsae,
+  type TkdCompetition,
+  type TkdGoal,
 } from "../lib/gymService"
 
 type IconName =
@@ -611,18 +629,148 @@ function GymView({
   )
 }
 
-const poomsaes = [
-  { name: "Koryo", value: 85, note: "Posiciones y ritmo por pulir" },
-  { name: "Taegeuk 8 Jang", value: 94, note: "Dominio competitivo" },
-  { name: "Keumgang", value: 68, note: "Reforzar equilibrio" },
-  { name: "Taegeuk 7 Jang", value: 97, note: "Técnica consolidada" },
-]
-
 function TkdView() {
-  const [goals, setGoals] = useState([false, true, false])
+  const [profile, setProfile] = useState<TkdProfile>({
+    belt_grade: "Cinturón Rojo 2° Gup",
+    dan_gup: "1er Dan",
+    academy_name: "Academia Central Taekwondo WT",
+    weight_category: "−57 kg Kyorugi",
+    current_macrocycle: "Preparación Pre-Competitiva",
+    next_tournament_date: "2026-06-24",
+  })
+  const [poomsaes, setPoomsaes] = useState<TkdPoomsae[]>([])
+  const [competitions, setCompetitions] = useState<TkdCompetition[]>([])
+  const [goals, setGoals] = useState<TkdGoal[]>([])
+  const [loading, setLoading] = useState(true)
+
+  // Modales Pestaña 2
+  const [profileModal, setProfileModal] = useState(false)
+  const [poomsaeModal, setPoomsaeModal] = useState(false)
+  const [compModal, setCompModal] = useState(false)
+  const [goalModal, setGoalModal] = useState(false)
+
+  // Forms
+  const [poomsaeForm, setPoomsaeForm] = useState<Partial<TkdPoomsae>>({
+    poomsae_name: "",
+    category: "Poomsae Tradicional",
+    mastery_percentage: 80,
+    technique_notes: "",
+  })
+  const [compForm, setCompForm] = useState<Partial<TkdCompetition>>({
+    event_name: "",
+    event_date: "2026-06-24",
+    competition_type: "Combate Kyorugi",
+    city_location: "",
+    result_medal: "PRÓXIMO",
+    technical_review: "",
+  })
+  const [goalForm, setGoalForm] = useState<Partial<TkdGoal>>({
+    title: "",
+    description: "Meta prioritaria",
+    category: "Competencia",
+  })
+
+  const loadTkdData = async () => {
+    setLoading(true)
+    const pData = await fetchTkdProfile()
+    if (pData) setProfile(pData)
+
+    const pmData = await fetchTkdPoomsaes()
+    setPoomsaes(pmData)
+
+    const cData = await fetchTkdCompetitions()
+    setCompetitions(cData)
+
+    const gData = await fetchTkdGoals()
+    setGoals(gData)
+
+    setLoading(false)
+  }
+
+  useEffect(() => {
+    loadTkdData()
+  }, [])
+
+  // Cálculo dinámico de días restantes
+  const getDaysRemaining = () => {
+    if (!profile.next_tournament_date) return 32
+    const target = new Date(profile.next_tournament_date)
+    const today = new Date()
+    const diff = Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+    return diff > 0 ? diff : 0
+  }
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault()
+    await upsertTkdProfile(profile)
+    setProfileModal(false)
+    loadTkdData()
+  }
+
+  const handleSavePoomsae = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!poomsaeForm.poomsae_name) return
+    await createTkdPoomsae(poomsaeForm as TkdPoomsae)
+    setPoomsaeModal(false)
+    setPoomsaeForm({ poomsae_name: "", category: "Poomsae Tradicional", mastery_percentage: 80, technique_notes: "" })
+    loadTkdData()
+  }
+
+  const handleDeletePoomsae = async (id: string) => {
+    if (confirm("¿Eliminar este Poomsae?")) {
+      await deleteTkdPoomsae(id)
+      loadTkdData()
+    }
+  }
+
+  const handleSaveCompetition = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!compForm.event_name) return
+    await createTkdCompetition(compForm as TkdCompetition)
+    setCompModal(false)
+    setCompForm({ event_name: "", event_date: "2026-06-24", competition_type: "Combate Kyorugi", city_location: "", result_medal: "PRÓXIMO", technical_review: "" })
+    loadTkdData()
+  }
+
+  const handleDeleteCompetition = async (id: string) => {
+    if (confirm("¿Eliminar este torneo?")) {
+      await deleteTkdCompetition(id)
+      loadTkdData()
+    }
+  }
+
+  const handleSaveGoal = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!goalForm.title) return
+    await createTkdGoal(goalForm as TkdGoal)
+    setGoalModal(false)
+    setGoalForm({ title: "", description: "Meta prioritaria", category: "Competencia" })
+    loadTkdData()
+  }
+
+  const handleToggleGoal = async (id: string, currentVal?: boolean) => {
+    await toggleTkdGoal(id, !currentVal)
+    loadTkdData()
+  }
+
+  const handleDeleteGoal = async (id: string) => {
+    if (confirm("¿Eliminar este objetivo?")) {
+      await deleteTkdGoal(id)
+      loadTkdData()
+    }
+  }
+
   return (
     <main className="page">
-      <section className="martial-banner">
+      {/* 1. MARTIAL BANNER CON EDITAR */}
+      <section className="martial-banner relative group">
+        <button
+          onClick={() => setProfileModal(true)}
+          className="absolute top-4 right-4 bg-slate-800/80 hover:bg-slate-700 text-slate-300 p-2 rounded-xl text-xs flex items-center gap-1.5 transition-all"
+        >
+          <Icon name="edit" size={14} /> Editar Perfil
+        </button>
+
         <div className="belt-symbol">
           <span />
           <span />
@@ -630,117 +778,441 @@ function TkdView() {
         <div>
           <span className="red-eyebrow">PERFIL MARCIAL · WORLD TAEKWONDO</span>
           <h1>
-            Cinturón Rojo <small>2° Gup / 1er Dan</small>
+            {profile.belt_grade} <small>{profile.dan_gup}</small>
           </h1>
-          <p>Academia Central Taekwondo WT</p>
+          <p>{profile.academy_name}</p>
         </div>
         <div className="profile-data">
           <span>
-            CATEGORÍA<b>−57 kg Kyorugi</b>
+            CATEGORÍA<b>{profile.weight_category}</b>
           </span>
           <span>
             MACROCICLO ACTUAL
             <b>
-              <Icon name="flame" /> Preparación Pre-Competitiva
+              <Icon name="flame" /> {profile.current_macrocycle}
             </b>
           </span>
           <span>
-            PRÓXIMO EVENTO<b>En 32 días</b>
+            PRÓXIMO EVENTO<b>En {getDaysRemaining()} días</b>
           </span>
         </div>
       </section>
+
       <div className="tkd-grid">
+        {/* 2. POOMSAES CARD */}
         <section className="card poomsae-card">
-          <SectionTitle
-            eyebrow="DOMINIO TÉCNICO"
-            title="Repertorio de Poomsaes"
-            detail="Ver repertorio completo"
-          />
-          <div className="poomsae-list">
-            {poomsaes.map((item) => (
-              <div className="poomsae-row" key={item.name}>
-                <div className="rank">品</div>
-                <div>
-                  <h3>
-                    {item.name}
-                    <span>Poomsae Tradicional</span>
-                  </h3>
-                  <p>{item.note}</p>
-                  <div className="progress">
-                    <i style={{ width: `${item.value}%` }} />
+          <div className="flex items-center justify-between mb-4">
+            <SectionTitle
+              eyebrow="DOMINIO TÉCNICO"
+              title="Repertorio de Poomsaes"
+              detail={`${poomsaes.length} formas registradas`}
+            />
+            <Button onClick={() => setPoomsaeModal(true)} variant="secondary">
+              <Icon name="plus" /> Poomsae
+            </Button>
+          </div>
+
+          {loading ? (
+            <div className="text-xs text-slate-500 py-6 text-center">Cargando poomsaes...</div>
+          ) : poomsaes.length === 0 ? (
+            <div className="text-xs text-slate-500 py-6 text-center border border-dashed border-slate-800 rounded-xl">
+              No hay Poomsaes registrados. Agrega el primero con "+ Poomsae".
+            </div>
+          ) : (
+            <div className="poomsae-list">
+              {poomsaes.map((item) => (
+                <div className="poomsae-row group relative" key={item.id}>
+                  <div className="rank">品</div>
+                  <div className="flex-1">
+                    <h3 className="flex items-center justify-between">
+                      <span>{item.poomsae_name}</span>
+                      <span className="text-[10px] text-slate-400 font-normal">{item.category}</span>
+                    </h3>
+                    <p>{item.technique_notes || "Sin notas adicionales"}</p>
+                    <div className="progress">
+                      <i style={{ width: `${item.mastery_percentage}%` }} />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <b>{item.mastery_percentage}%</b>
+                    <button
+                      onClick={() => item.id && handleDeletePoomsae(item.id)}
+                      className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-rose-400 p-1"
+                      title="Eliminar"
+                    >
+                      <Icon name="trash" size={13} />
+                    </button>
                   </div>
                 </div>
-                <b>{item.value}%</b>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </section>
+
+        {/* 3. CALENDARIO DE TORNEOS */}
         <section className="card competitions">
-          <SectionTitle
-            eyebrow="CALENDARIO WT"
-            title="Torneos & Participaciones"
-          />
-          <div className="timeline">
-            <div className="event upcoming">
-              <i />
-              <span>24 JUN · 2026</span>
-              <h3>Campeonato Nacional WT 2026</h3>
-              <p>Combate Kyorugi · Bogotá</p>
-              <b>PRÓXIMO</b>
-            </div>
-            <div className="event">
-              <i />
-              <span>18 MAR · 2026</span>
-              <h3>Open Regional Capital</h3>
-              <p>Combate Kyorugi · −57 kg</p>
-              <b className="silver">2° PLATA</b>
-              <blockquote>
-                Análisis: mejorar anticipación de Bandal Chagi con pie
-                adelantado.
-              </blockquote>
-            </div>
-            <div className="event">
-              <i />
-              <span>09 NOV · 2025</span>
-              <h3>Copa Distrital WT</h3>
-              <p>Kyorugi individual</p>
-              <b className="gold">1° ORO</b>
-            </div>
+          <div className="flex items-center justify-between mb-4">
+            <SectionTitle eyebrow="CALENDARIO WT" title="Torneos & Participaciones" />
+            <Button onClick={() => setCompModal(true)} variant="secondary">
+              <Icon name="plus" /> Torneo
+            </Button>
           </div>
+
+          {loading ? (
+            <div className="text-xs text-slate-500 py-6 text-center">Cargando competencias...</div>
+          ) : competitions.length === 0 ? (
+            <div className="text-xs text-slate-500 py-6 text-center border border-dashed border-slate-800 rounded-xl">
+              No hay torneos registrados. Agrega uno con "+ Torneo".
+            </div>
+          ) : (
+            <div className="timeline">
+              {competitions.map((item) => {
+                const isGold = item.result_medal?.includes("ORO")
+                const isSilver = item.result_medal?.includes("PLATA")
+                const isBronze = item.result_medal?.includes("BRONCE")
+                return (
+                  <div className={`event ${item.result_medal === "PRÓXIMO" ? "upcoming" : ""} group relative`} key={item.id}>
+                    <i />
+                    <div className="flex items-center justify-between">
+                      <span>{item.event_date}</span>
+                      <button
+                        onClick={() => item.id && handleDeleteCompetition(item.id)}
+                        className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-rose-400 p-1"
+                      >
+                        <Icon name="trash" size={12} />
+                      </button>
+                    </div>
+                    <h3>{item.event_name}</h3>
+                    <p>
+                      {item.competition_type} · {item.city_location || "Sede por confirmar"}
+                    </p>
+                    <b className={isGold ? "gold" : isSilver ? "silver" : isBronze ? "bronze" : ""}>
+                      {item.result_medal || "PARTICIPACIÓN"}
+                    </b>
+                    {item.technical_review && (
+                      <blockquote>Análisis: {item.technical_review}</blockquote>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </section>
+
+        {/* 4. OBJETIVOS DEPORTIVOS */}
         <section className="card goals">
-          <SectionTitle
-            eyebrow="ROAD TO BLACK BELT"
-            title="Objetivos deportivos"
-          />
-          {[
-            "Clasificar al Campeonato Nacional WT",
-            "Completar Taegeuk 8 con precisión >90%",
-            "Perfeccionar Nerio Chagi a la cabeza",
-          ].map((goal, i) => (
-            <button
-              type="button"
-              key={goal}
-              onClick={() => setGoals(goals.map((g, n) => (n === i ? !g : g)))}
-              className={goals[i] ? "checked" : ""}
-            >
-              <i>{goals[i] && <Icon name="check" size={13} />}</i>
-              <span>
-                {goal}
-                <small>
-                  {i === 0
-                    ? "Meta prioritaria · Junio 2026"
-                    : "Desarrollo técnico"}
-                </small>
-              </span>
-              <Icon name="arrow" />
-            </button>
-          ))}
-          <Button variant="secondary">
-            <Icon name="plus" /> Nuevo objetivo
-          </Button>
+          <div className="flex items-center justify-between mb-4">
+            <SectionTitle eyebrow="ROAD TO BLACK BELT" title="Objetivos deportivos" />
+            <Button onClick={() => setGoalModal(true)} variant="secondary">
+              <Icon name="plus" /> Nuevo objetivo
+            </Button>
+          </div>
+
+          {loading ? (
+            <div className="text-xs text-slate-500 py-6 text-center">Cargando objetivos...</div>
+          ) : goals.length === 0 ? (
+            <div className="text-xs text-slate-500 py-6 text-center border border-dashed border-slate-800 rounded-xl">
+              No hay objetivos deportivos activos. Agrega uno nuevo.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {goals.map((item) => (
+                <div
+                  key={item.id}
+                  className={`flex items-center justify-between p-3 rounded-xl border border-slate-800/80 bg-slate-900/50 transition-all ${
+                    item.is_completed ? "opacity-60 line-through" : ""
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => item.id && handleToggleGoal(item.id, item.is_completed)}
+                    className="flex items-center gap-3 text-left flex-1"
+                  >
+                    <span
+                      className={`w-5 h-5 rounded-lg border flex items-center justify-center transition-all ${
+                        item.is_completed
+                          ? "bg-emerald-500/20 border-emerald-500 text-emerald-400"
+                          : "border-slate-700 bg-slate-950"
+                      }`}
+                    >
+                      {item.is_completed && <Icon name="check" size={12} />}
+                    </span>
+                    <div>
+                      <div className="text-xs font-semibold text-white">{item.title}</div>
+                      <div className="text-[10px] text-slate-400">{item.description || item.category}</div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => item.id && handleDeleteGoal(item.id)}
+                    className="p-1 text-slate-500 hover:text-rose-400"
+                  >
+                    <Icon name="trash" size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
       </div>
+
+      {/* MODAL: EDITAR PERFIL TKD */}
+      {profileModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-white">Editar Perfil Marcial WT</h3>
+              <button onClick={() => setProfileModal(false)} className="text-slate-400 hover:text-white">
+                <Icon name="close" size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleSaveProfile} className="space-y-3 text-xs">
+              <div>
+                <label className="block text-slate-400 mb-1">Grado / Cinturón</label>
+                <input
+                  type="text"
+                  value={profile.belt_grade || ""}
+                  onChange={(e) => setProfile({ ...profile, belt_grade: e.target.value })}
+                  className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1">Dan / Gup</label>
+                <input
+                  type="text"
+                  value={profile.dan_gup || ""}
+                  onChange={(e) => setProfile({ ...profile, dan_gup: e.target.value })}
+                  className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1">Academia / Dojang</label>
+                <input
+                  type="text"
+                  value={profile.academy_name || ""}
+                  onChange={(e) => setProfile({ ...profile, academy_name: e.target.value })}
+                  className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1">Categoría de Peso</label>
+                <input
+                  type="text"
+                  value={profile.weight_category || ""}
+                  onChange={(e) => setProfile({ ...profile, weight_category: e.target.value })}
+                  className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1">Macrociclo Actual</label>
+                <input
+                  type="text"
+                  value={profile.current_macrocycle || ""}
+                  onChange={(e) => setProfile({ ...profile, current_macrocycle: e.target.value })}
+                  className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1">Fecha Próximo Torneo</label>
+                <input
+                  type="date"
+                  value={profile.next_tournament_date || ""}
+                  onChange={(e) => setProfile({ ...profile, next_tournament_date: e.target.value })}
+                  className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+              <div className="flex items-center justify-end gap-2 border-t border-slate-800 pt-3">
+                <button type="button" onClick={() => setProfileModal(false)} className="rounded-xl bg-slate-800 px-4 py-2 font-semibold text-slate-300">
+                  Cancelar
+                </button>
+                <button type="submit" className="rounded-xl bg-emerald-500 px-4 py-2 font-semibold text-slate-950">
+                  Guardar Perfil
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: NUEVO POOMSAE */}
+      {poomsaeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-white">Nuevo Poomsae</h3>
+              <button onClick={() => setPoomsaeModal(false)} className="text-slate-400 hover:text-white">
+                <Icon name="close" size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleSavePoomsae} className="space-y-3 text-xs">
+              <div>
+                <label className="block text-slate-400 mb-1">Nombre del Poomsae</label>
+                <input
+                  required
+                  type="text"
+                  placeholder="Ej: Koryo, Taegeuk 8 Jang"
+                  value={poomsaeForm.poomsae_name || ""}
+                  onChange={(e) => setPoomsaeForm({ ...poomsaeForm, poomsae_name: e.target.value })}
+                  className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1">Porcentaje de Dominio ({poomsaeForm.mastery_percentage}%)</label>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={poomsaeForm.mastery_percentage || 0}
+                  onChange={(e) => setPoomsaeForm({ ...poomsaeForm, mastery_percentage: parseInt(e.target.value) })}
+                  className="w-full accent-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1">Notas de Técnica / Puntos por Pulir</label>
+                <textarea
+                  rows={3}
+                  placeholder="Ej: Ajustar ritmo en secuencia de patadas y estabilidad en Ap Seogi..."
+                  value={poomsaeForm.technique_notes || ""}
+                  onChange={(e) => setPoomsaeForm({ ...poomsaeForm, technique_notes: e.target.value })}
+                  className="w-full rounded-xl border border-slate-800 bg-slate-950 p-2.5 text-white focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+              <div className="flex items-center justify-end gap-2 border-t border-slate-800 pt-3">
+                <button type="button" onClick={() => setPoomsaeModal(false)} className="rounded-xl bg-slate-800 px-4 py-2 font-semibold text-slate-300">
+                  Cancelar
+                </button>
+                <button type="submit" className="rounded-xl bg-emerald-500 px-4 py-2 font-semibold text-slate-950">
+                  Guardar Poomsae
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: NUEVO TORNEO */}
+      {compModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-white">Nuevo Torneo / Evento WT</h3>
+              <button onClick={() => setCompModal(false)} className="text-slate-400 hover:text-white">
+                <Icon name="close" size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleSaveCompetition} className="space-y-3 text-xs">
+              <div>
+                <label className="block text-slate-400 mb-1">Nombre del Evento</label>
+                <input
+                  required
+                  type="text"
+                  placeholder="Ej: Campeonato Nacional WT 2026"
+                  value={compForm.event_name || ""}
+                  onChange={(e) => setCompForm({ ...compForm, event_name: e.target.value })}
+                  className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-slate-400 mb-1">Fecha</label>
+                  <input
+                    type="date"
+                    value={compForm.event_date || ""}
+                    onChange={(e) => setCompForm({ ...compForm, event_date: e.target.value })}
+                    className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-400 mb-1">Resultado / Medalla</label>
+                  <select
+                    value={compForm.result_medal || "PRÓXIMO"}
+                    onChange={(e) => setCompForm({ ...compForm, result_medal: e.target.value })}
+                    className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
+                  >
+                    <option value="PRÓXIMO">PRÓXIMO</option>
+                    <option value="1° ORO">1° ORO 🥇</option>
+                    <option value="2° PLATA">2° PLATA 🥈</option>
+                    <option value="3° BRONCE">3° BRONCE 🥉</option>
+                    <option value="PARTICIPACIÓN">PARTICIPACIÓN</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1">Sede / Ciudad</label>
+                <input
+                  type="text"
+                  placeholder="Ej: Bogotá"
+                  value={compForm.city_location || ""}
+                  onChange={(e) => setCompForm({ ...compForm, city_location: e.target.value })}
+                  className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1">Análisis Técnico Post-Combate</label>
+                <textarea
+                  rows={3}
+                  placeholder="Ej: Mejorar anticipación de Bandal Chagi con pie adelantado..."
+                  value={compForm.technical_review || ""}
+                  onChange={(e) => setCompForm({ ...compForm, technical_review: e.target.value })}
+                  className="w-full rounded-xl border border-slate-800 bg-slate-950 p-2.5 text-white focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+              <div className="flex items-center justify-end gap-2 border-t border-slate-800 pt-3">
+                <button type="button" onClick={() => setCompModal(false)} className="rounded-xl bg-slate-800 px-4 py-2 font-semibold text-slate-300">
+                  Cancelar
+                </button>
+                <button type="submit" className="rounded-xl bg-emerald-500 px-4 py-2 font-semibold text-slate-950">
+                  Guardar Torneo
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: NUEVO OBJETIVO */}
+      {goalModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-white">Nuevo Objetivo Deportivo</h3>
+              <button onClick={() => setGoalModal(false)} className="text-slate-400 hover:text-white">
+                <Icon name="close" size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleSaveGoal} className="space-y-3 text-xs">
+              <div>
+                <label className="block text-slate-400 mb-1">Título del Objetivo</label>
+                <input
+                  required
+                  type="text"
+                  placeholder="Ej: Clasificar al Campeonato Nacional WT"
+                  value={goalForm.title || ""}
+                  onChange={(e) => setGoalForm({ ...goalForm, title: e.target.value })}
+                  className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1">Descripción / Detalle</label>
+                <input
+                  type="text"
+                  placeholder="Ej: Meta prioritaria · Junio 2026"
+                  value={goalForm.description || ""}
+                  onChange={(e) => setGoalForm({ ...goalForm, description: e.target.value })}
+                  className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+              <div className="flex items-center justify-end gap-2 border-t border-slate-800 pt-3">
+                <button type="button" onClick={() => setGoalModal(false)} className="rounded-xl bg-slate-800 px-4 py-2 font-semibold text-slate-300">
+                  Cancelar
+                </button>
+                <button type="submit" className="rounded-xl bg-emerald-500 px-4 py-2 font-semibold text-slate-950">
+                  Guardar Objetivo
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </main>
   )
 }
