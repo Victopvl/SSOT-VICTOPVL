@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react"
+import { useEffect, useState, type ReactNode, type FormEvent } from "react"
 import {
   fetchWeeklyRoutines,
   createGymRoutine,
@@ -125,9 +125,7 @@ const paths: Record<IconName, ReactNode> = {
     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
   ),
   trash: (
-    <>
-      <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-    </>
+    <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
   ),
 }
 
@@ -256,13 +254,27 @@ const defaultWeek: GymRoutine[] = [
 ]
 
 const DAYS = [
-  { id: 1, day: "LUN", date: "12" },
-  { id: 2, day: "MAR", date: "13" },
-  { id: 3, day: "MIÉ", date: "14" },
-  { id: 4, day: "JUE", date: "15" },
-  { id: 5, day: "VIE", date: "16" },
-  { id: 6, day: "SÁB", date: "17" },
-  { id: 7, day: "DOM", date: "18" },
+  { id: 1, day: "LUN" },
+  { id: 2, day: "MAR" },
+  { id: 3, day: "MIÉ" },
+  { id: 4, day: "JUE" },
+  { id: 5, day: "VIE" },
+  { id: 6, day: "SÁB" },
+  { id: 7, day: "DOM" },
+]
+
+interface ExerciseItem {
+  id: string
+  name: string
+  target: string
+  pb: string
+}
+
+const defaultExercises: ExerciseItem[] = [
+  { id: "hip-thrust", name: "Hip Thrust con barra", target: "Glúteo mayor · Fuerza / Hipertrofia", pb: "100 kg × 6" },
+  { id: "squat", name: "Sentadilla Trasera Barra", target: "Cuádriceps & Glúteos · Fuerza Base", pb: "110 kg × 5" },
+  { id: "deadlift", name: "Peso Muerto Rumano", target: "Isquiotibiales & Cadena Posterior", pb: "95 kg × 8" },
+  { id: "box-jump", name: "Salto al Cajón Plyo", target: "Potencia de Piernas & Reacción", pb: "75 cm × 5" },
 ]
 
 function Brand() {
@@ -281,17 +293,41 @@ function Brand() {
   )
 }
 
+// REQUERIMIENTO 4: NAVEGADOR DE SEMANAS
 function Header({
   active,
   setActive,
   openDrawer,
   openRoutineModal,
+  weekOffset,
+  setWeekOffset,
 }: {
   active: string
   setActive: (id: string) => void
   openDrawer: () => void
   openRoutineModal: () => void
+  weekOffset: number
+  setWeekOffset: React.Dispatch<React.SetStateAction<number>>
 }) {
+  const getFormattedWeekRange = (offset: number) => {
+    const now = new Date()
+    const dayOfWeek = now.getDay() || 7
+    const monday = new Date(now)
+    monday.setDate(now.getDate() - (dayOfWeek - 1) + offset * 7)
+    const sunday = new Date(monday)
+    sunday.setDate(monday.getDate() + 6)
+
+    const formatDay = (d: Date) => String(d.getDate()).padStart(2, "0")
+    const monthNames = [
+      "ENE", "FEB", "MAR", "ABR", "MAY", "JUN",
+      "JUL", "AGO", "SEP", "OCT", "NOV", "DIC",
+    ]
+    const monthStr = monthNames[monday.getMonth()]
+    const yearStr = monday.getFullYear()
+
+    return `${formatDay(monday)} — ${formatDay(sunday)} ${monthStr} ${yearStr}`
+  }
+
   return (
     <header className="header">
       <div className="header-top">
@@ -337,10 +373,27 @@ function Header({
             </button>
           ))}
         </div>
-        <div className="week-range">
-          <Icon name="calendar" />
-          <span>12 — 18 MAYO 2026</span>
-          <Icon name="chevron" />
+
+        {/* NAVEGADOR DE SEMANA FUNCIONAL */}
+        <div className="week-range flex items-center gap-2 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800 text-xs font-semibold text-slate-300">
+          <button
+            type="button"
+            onClick={() => setWeekOffset((prev) => prev - 1)}
+            className="hover:text-emerald-400 transition-colors p-1"
+            title="Semana anterior"
+          >
+            ‹
+          </button>
+          <Icon name="calendar" size={14} />
+          <span>{getFormattedWeekRange(weekOffset)}</span>
+          <button
+            type="button"
+            onClick={() => setWeekOffset((prev) => prev + 1)}
+            className="hover:text-emerald-400 transition-colors p-1"
+            title="Semana siguiente"
+          >
+            ›
+          </button>
         </div>
       </div>
     </header>
@@ -379,6 +432,7 @@ function GymView({
   onDelete,
   sets,
   setSets,
+  weekOffset,
 }: {
   openDrawer: (routine?: GymRoutine) => void
   routines: GymRoutine[]
@@ -390,16 +444,33 @@ function GymView({
   setSets: React.Dispatch<
     React.SetStateAction<{ kg: string; reps: string; rpe: string }[]>
   >
+  weekOffset: number
 }) {
+  // REQUERIMIENTO 2: FILTROS ACTIVOS
   const [filter, setFilter] = useState("Todos")
+
+  // REQUERIMIENTO 5: EJERCICIOS DINÁMICOS Y SOBRECARGA PROGRESIVA
+  const [exercises, setExercises] = useState<ExerciseItem[]>(defaultExercises)
+  const [selectedExerciseId, setSelectedExerciseId] = useState("hip-thrust")
+  const [exerciseModalOpen, setExerciseModalOpen] = useState(false)
+  const [exerciseForm, setExerciseForm] = useState<Partial<ExerciseItem>>({
+    name: "",
+    target: "",
+    pb: "",
+  })
+
+  const selectedExercise =
+    exercises.find((ex) => ex.id === selectedExerciseId) || exercises[0]
 
   const displayRoutines = routines.length > 0 ? routines : defaultWeek
 
+  // LÓGICA DE FILTRADO REAL (Req 2)
   const filteredRoutines = displayRoutines.filter((routine) => {
     if (filter === "Todos") return true
     return routine.training_type.toLowerCase().includes(filter.toLowerCase())
   })
 
+  // REQUERIMIENTO 3: MÉTRICAS DEL HERO CONECTADAS DINÁMICAMENTE
   const totalSessions = displayRoutines.length
   const totalMinutes = displayRoutines.reduce(
     (acc, r) => acc + (r.estimated_duration_min || 0),
@@ -409,12 +480,52 @@ function GymView({
   const mins = totalMinutes % 60
   const completedCount = displayRoutines.filter((r) => r.is_completed).length
 
+  // Cálculo de Carga acumulada basada en las series actuales
+  const totalTonnageKg = sets.reduce(
+    (acc, s) => acc + (parseFloat(s.kg) || 0) * (parseInt(s.reps) || 0),
+    0,
+  )
+
+  // Función para obtener las fechas relativas de la semana
+  const getDayDate = (dayIndex: number) => {
+    const now = new Date()
+    const dayOfWeek = now.getDay() || 7
+    const monday = new Date(now)
+    monday.setDate(now.getDate() - (dayOfWeek - 1) + weekOffset * 7 + (dayIndex - 1))
+    return String(monday.getDate()).padStart(2, "0")
+  }
+
+  const handleSaveExercise = (e: FormEvent) => {
+    e.preventDefault()
+    if (!exerciseForm.name) return
+    const newEx: ExerciseItem = {
+      id: Date.now().toString(),
+      name: exerciseForm.name,
+      target: exerciseForm.target || "General",
+      pb: exerciseForm.pb || "Sin registro",
+    }
+    setExercises([...exercises, newEx])
+    setSelectedExerciseId(newEx.id)
+    setExerciseModalOpen(false)
+    setExerciseForm({ name: "", target: "", pb: "" })
+  }
+
+  const handleDeleteExercise = (id: string) => {
+    if (exercises.length <= 1) return alert("Debes conservar al menos un ejercicio.")
+    if (confirm("¿Eliminar este ejercicio de la lista?")) {
+      const nextExs = exercises.filter((ex) => ex.id !== id)
+      setExercises(nextExs)
+      if (selectedExerciseId === id) setSelectedExerciseId(nextExs[0].id)
+    }
+  }
+
   return (
     <main className="page">
+      {/* HERO SECTION CON MÉTRICAS CONECTADAS (Req 3) */}
       <section className="hero-line">
         <div>
           <div className="eyebrow">
-            <span className="pulse-dot" /> MICROCICLO · SEMANA 20
+            <span className="pulse-dot" /> MICROCICLO · SEMANA {20 + weekOffset}
           </div>
           <h1>
             Tu semana de <span>alto rendimiento.</span>
@@ -442,12 +553,13 @@ function GymView({
           <div>
             <Icon name="trending" />
             <span>
-              <b>+{completedCount ? Math.round((completedCount / totalSessions) * 100) : 0}%</b> carga
+              <b>{totalTonnageKg > 0 ? `${totalTonnageKg} kg` : `+${completedCount ? Math.round((completedCount / totalSessions) * 100) : 0}%`}</b> carga
             </span>
           </div>
         </div>
       </section>
 
+      {/* BOTONES DE FILTROS ACTIVOS (Req 2) */}
       <div className="filters">
         {filters.map(([label, icon]) => (
           <button
@@ -462,21 +574,32 @@ function GymView({
         ))}
       </div>
 
+      {/* PROGRAMACIÓN SEMANAL CON CRUD Y BOTÓN + NUEVA RUTINA (Req 1) */}
       <section>
-        <SectionTitle
-          eyebrow="PLAN SEMANAL"
-          title="Programación multifacética"
-          detail={`${totalSessions} sesiones · ${completedCount} completadas`}
-        />
+        <div className="flex items-center justify-between mb-4">
+          <SectionTitle
+            eyebrow="PLAN SEMANAL"
+            title="Programación multifacética"
+            detail={`${filteredRoutines.length} de ${totalSessions} sesiones · ${completedCount} completadas`}
+          />
+          <Button onClick={onOpenCreate} variant="secondary">
+            <Icon name="plus" /> Agregar nueva rutina
+          </Button>
+        </div>
 
         {loading ? (
           <div className="py-12 text-center text-xs text-slate-500">
             Cargando programación desde Supabase...
           </div>
+        ) : filteredRoutines.length === 0 ? (
+          <div className="py-12 text-center text-xs text-slate-500 border border-dashed border-slate-800 rounded-xl">
+            No hay rutinas programadas para este filtro. Agrega una nueva rutina.
+          </div>
         ) : (
           <div className="week-grid">
             {filteredRoutines.map((session, index) => {
               const dayMeta = DAYS.find((d) => d.id === session.day_of_week) || DAYS[index % 7]
+              const formattedDate = getDayDate(session.day_of_week || 1)
               return (
                 <article
                   className={`day-card accent-${session.accent_color || "emerald"} ${
@@ -486,7 +609,7 @@ function GymView({
                 >
                   <div className="day-top">
                     <span>{dayMeta.day}</span>
-                    <b>{dayMeta.date}</b>
+                    <b>{formattedDate}</b>
                     {session.is_completed && (
                       <i>
                         <Icon name="check" size={11} />
@@ -518,16 +641,16 @@ function GymView({
                       {index === 0 ? "Iniciar sesión" : "Ver sesión"}
                     </Button>
 
-                    {session.id && (
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => onOpenEdit(session)}
-                          className="rounded-lg p-1 text-slate-500 hover:bg-slate-800 hover:text-white"
-                          title="Editar rutina"
-                        >
-                          <Icon name="edit" size={13} />
-                        </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => onOpenEdit(session)}
+                        className="rounded-lg p-1 text-slate-500 hover:bg-slate-800 hover:text-white"
+                        title="Editar rutina"
+                      >
+                        <Icon name="edit" size={13} />
+                      </button>
+                      {session.id && (
                         <button
                           type="button"
                           onClick={() => session.id && onDelete(session.id)}
@@ -536,8 +659,8 @@ function GymView({
                         >
                           <Icon name="trash" size={13} />
                         </button>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 </article>
               )
@@ -546,29 +669,64 @@ function GymView({
         )}
       </section>
 
+      {/* REGISTRO DE SOBRECARGA PROGRESIVA CON EJERCICIOS DINÁMICOS (Req 5) */}
       <section className="logger card">
-        <div className="logger-head">
-          <div className="exercise-icon">
-            <Icon name="dumbbell" size={20} />
+        <div className="logger-head flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="exercise-icon">
+              <Icon name="dumbbell" size={20} />
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-500 font-bold tracking-wider">REGISTRO DE SOBRECARGA PROGRESIVA</span>
+              <div className="flex items-center gap-2 mt-0.5">
+                {/* SELECTOR DE EJERCICIOS */}
+                <select
+                  value={selectedExerciseId}
+                  onChange={(e) => setSelectedExerciseId(e.target.value)}
+                  className="bg-slate-950 text-white font-bold text-lg border border-slate-800 rounded-lg px-2 py-1 focus:outline-none focus:border-emerald-500"
+                >
+                  {exercises.map((ex) => (
+                    <option key={ex.id} value={ex.id}>
+                      {ex.name}
+                    </option>
+                  ))}
+                </select>
+
+                <button
+                  onClick={() => setExerciseModalOpen(true)}
+                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-400"
+                  title="Nuevo Ejercicio"
+                >
+                  <Icon name="plus" size={14} />
+                </button>
+                <button
+                  onClick={() => handleDeleteExercise(selectedExercise.id)}
+                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-rose-400"
+                  title="Eliminar Ejercicio Seleccionado"
+                >
+                  <Icon name="trash" size={14} />
+                </button>
+              </div>
+              <p className="text-xs text-slate-400 mt-1">{selectedExercise.target}</p>
+            </div>
           </div>
-          <div>
-            <span>REGISTRO DE SOBRECARGA PROGRESIVA</span>
-            <h2>Hip Thrust con barra</h2>
-            <p>Glúteo mayor · Fuerza / Hipertrofia</p>
-          </div>
-          <div className="personal-best">
-            <span>MEJOR MARCA</span>
-            <b>100 kg × 6</b>
-          </div>
-          <div className="rest-timer">
-            <Icon name="clock" />
-            <span>DESCANSO</span>
-            <b>01:30</b>
-            <button type="button">
-              <Icon name="pause" size={14} />
-            </button>
+
+          <div className="flex items-center gap-4">
+            <div className="personal-best">
+              <span>MEJOR MARCA</span>
+              <b>{selectedExercise.pb}</b>
+            </div>
+            <div className="rest-timer">
+              <Icon name="clock" />
+              <span>DESCANSO</span>
+              <b>01:30</b>
+              <button type="button">
+                <Icon name="pause" size={14} />
+              </button>
+            </div>
           </div>
         </div>
+
         <div className="table">
           <div className="table-row table-header">
             <span>SERIE</span>
@@ -576,7 +734,7 @@ function GymView({
             <span>REPETICIONES</span>
             <span>RPE (1–10)</span>
             <span>RECORD ANTERIOR</span>
-            <span>ESTADO</span>
+            <span>ACCIONES</span>
           </div>
           {sets.map((set, i) => (
             <div className="table-row" key={i}>
@@ -625,8 +783,18 @@ function GymView({
               <span className="previous">
                 Última vez: <b>{i ? "85kg × 8" : "85kg × 10"}</b>
               </span>
-              <span className="done">
-                <Icon name="check" size={13} /> Completada
+              <span className="flex items-center gap-2">
+                <span className="done text-emerald-400 flex items-center gap-1">
+                  <Icon name="check" size={13} /> Lista
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSets(sets.filter((_, n) => n !== i))}
+                  className="text-slate-500 hover:text-rose-400 p-1"
+                  title="Eliminar serie"
+                >
+                  <Icon name="trash" size={13} />
+                </button>
               </span>
             </div>
           ))}
@@ -639,6 +807,61 @@ function GymView({
           <Icon name="plus" /> Agregar serie
         </Button>
       </section>
+
+      {/* MODAL AGREGAR EJERCICIO (Req 5) */}
+      {exerciseModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-white">Nuevo Ejercicio</h3>
+              <button onClick={() => setExerciseModalOpen(false)} className="text-slate-400 hover:text-white">
+                <Icon name="close" size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleSaveExercise} className="space-y-3 text-xs">
+              <div>
+                <label className="block text-slate-400 mb-1">Nombre del Ejercicio</label>
+                <input
+                  required
+                  type="text"
+                  placeholder="Ej: Press Banca Plano"
+                  value={exerciseForm.name || ""}
+                  onChange={(e) => setExerciseForm({ ...exerciseForm, name: e.target.value })}
+                  className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1">Enfoque / Grupo Muscular</label>
+                <input
+                  type="text"
+                  placeholder="Ej: Pecho · Fuerza / Hipertrofia"
+                  value={exerciseForm.target || ""}
+                  onChange={(e) => setExerciseForm({ ...exerciseForm, target: e.target.value })}
+                  className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1">Mejor Marca (PB)</label>
+                <input
+                  type="text"
+                  placeholder="Ej: 100 kg × 5"
+                  value={exerciseForm.pb || ""}
+                  onChange={(e) => setExerciseForm({ ...exerciseForm, pb: e.target.value })}
+                  className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+              <div className="flex items-center justify-end gap-2 border-t border-slate-800 pt-3">
+                <button type="button" onClick={() => setExerciseModalOpen(false)} className="rounded-xl bg-slate-800 px-4 py-2 font-semibold text-slate-300">
+                  Cancelar
+                </button>
+                <button type="submit" className="rounded-xl bg-emerald-500 px-4 py-2 font-semibold text-slate-950">
+                  Guardar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </main>
   )
 }
@@ -647,6 +870,7 @@ function GymView({
 // PESTAÑA 2: TAEKWONDO WT
 // ==========================================
 function TkdView() {
+  // REQUERIMIENTO 6: PERFIL MARCIAL EDITABLE EN INTERFAZ
   const [profile, setProfile] = useState<TkdProfile>({
     belt_grade: "Cinturón Rojo 2° Gup",
     dan_gup: "1er Dan",
@@ -655,6 +879,8 @@ function TkdView() {
     current_macrocycle: "Preparación Pre-Competitiva",
     next_tournament_date: "2026-06-24",
   })
+
+  // REQUERIMIENTO 7 & 8 & 9: ESTADOS Y MODALES CRUD
   const [poomsaes, setPoomsaes] = useState<TkdPoomsae[]>([])
   const [competitions, setCompetitions] = useState<TkdCompetition[]>([])
   const [goals, setGoals] = useState<TkdGoal[]>([])
@@ -663,10 +889,13 @@ function TkdView() {
   // Modales
   const [profileModal, setProfileModal] = useState(false)
   const [poomsaeModal, setPoomsaeModal] = useState(false)
+  const [editingPoomsaeId, setEditingPoomsaeId] = useState<string | null>(null)
   const [compModal, setCompModal] = useState(false)
+  const [editingCompId, setEditingCompId] = useState<string | null>(null)
   const [goalModal, setGoalModal] = useState(false)
+  const [goalDetailModal, setGoalDetailModal] = useState<TkdGoal | null>(null)
 
-  // Forms
+  // Formulareos
   const [poomsaeForm, setPoomsaeForm] = useState<Partial<TkdPoomsae>>({
     poomsae_name: "",
     category: "Poomsae Tradicional",
@@ -708,6 +937,7 @@ function TkdView() {
     loadTkdData()
   }, [])
 
+  // CÁLCULO DINÁMICO DE DÍAS RESTANTES (Req 6)
   const getDaysRemaining = () => {
     if (!profile.next_tournament_date) return 32
     const target = new Date(profile.next_tournament_date)
@@ -716,19 +946,34 @@ function TkdView() {
     return diff > 0 ? diff : 0
   }
 
-  const handleSaveProfile = async (e: React.FormEvent) => {
+  const handleSaveProfile = async (e: FormEvent) => {
     e.preventDefault()
     await upsertTkdProfile(profile)
     setProfileModal(false)
     loadTkdData()
   }
 
-  const handleSavePoomsae = async (e: React.FormEvent) => {
+  // REQUERIMIENTO 7: CRUD POOMSAES (CREAR Y EDITAR)
+  const handleOpenCreatePoomsae = () => {
+    setEditingPoomsaeId(null)
+    setPoomsaeForm({ poomsae_name: "", category: "Poomsae Tradicional", mastery_percentage: 80, technique_notes: "" })
+    setPoomsaeModal(true)
+  }
+
+  const handleOpenEditPoomsae = (item: TkdPoomsae) => {
+    setEditingPoomsaeId(item.id || null)
+    setPoomsaeForm(item)
+    setPoomsaeModal(true)
+  }
+
+  const handleSavePoomsae = async (e: FormEvent) => {
     e.preventDefault()
     if (!poomsaeForm.poomsae_name) return
+    if (editingPoomsaeId) {
+      await deleteTkdPoomsae(editingPoomsaeId)
+    }
     await createTkdPoomsae(poomsaeForm as TkdPoomsae)
     setPoomsaeModal(false)
-    setPoomsaeForm({ poomsae_name: "", category: "Poomsae Tradicional", mastery_percentage: 80, technique_notes: "" })
     loadTkdData()
   }
 
@@ -739,12 +984,27 @@ function TkdView() {
     }
   }
 
-  const handleSaveCompetition = async (e: React.FormEvent) => {
+  // REQUERIMIENTO 8: CRUD TORNEOS (CREAR Y EDITAR)
+  const handleOpenCreateComp = () => {
+    setEditingCompId(null)
+    setCompForm({ event_name: "", event_date: "2026-06-24", competition_type: "Combate Kyorugi", city_location: "", result_medal: "PRÓXIMO", technical_review: "" })
+    setCompModal(true)
+  }
+
+  const handleOpenEditComp = (item: TkdCompetition) => {
+    setEditingCompId(item.id || null)
+    setCompForm(item)
+    setCompModal(true)
+  }
+
+  const handleSaveCompetition = async (e: FormEvent) => {
     e.preventDefault()
     if (!compForm.event_name) return
+    if (editingCompId) {
+      await deleteTkdCompetition(editingCompId)
+    }
     await createTkdCompetition(compForm as TkdCompetition)
     setCompModal(false)
-    setCompForm({ event_name: "", event_date: "2026-06-24", competition_type: "Combate Kyorugi", city_location: "", result_medal: "PRÓXIMO", technical_review: "" })
     loadTkdData()
   }
 
@@ -755,7 +1015,8 @@ function TkdView() {
     }
   }
 
-  const handleSaveGoal = async (e: React.FormEvent) => {
+  // REQUERIMIENTO 9: OBJETIVOS DEPORTIVOS CON DETALLE Y PLANTILLA
+  const handleSaveGoal = async (e: FormEvent) => {
     e.preventDefault()
     if (!goalForm.title) return
     await createTkdGoal(goalForm as TkdGoal)
@@ -778,10 +1039,11 @@ function TkdView() {
 
   return (
     <main className="page">
+      {/* BANNER DE PERFIL MARCIAL EDITABLE (Req 6) */}
       <section className="martial-banner relative group">
         <button
           onClick={() => setProfileModal(true)}
-          className="absolute top-4 right-4 bg-slate-800/80 hover:bg-slate-700 text-slate-300 p-2 rounded-xl text-xs flex items-center gap-1.5 transition-all"
+          className="absolute top-4 right-4 bg-slate-800/80 hover:bg-slate-700 text-slate-300 p-2 rounded-xl text-xs flex items-center gap-1.5 transition-all cursor-pointer"
         >
           <Icon name="edit" size={14} /> Editar Perfil
         </button>
@@ -814,6 +1076,7 @@ function TkdView() {
       </section>
 
       <div className="tkd-grid">
+        {/* REPERTORIO DE POOMSAES (Req 7) */}
         <section className="card poomsae-card">
           <div className="flex items-center justify-between mb-4">
             <SectionTitle
@@ -821,7 +1084,7 @@ function TkdView() {
               title="Repertorio de Poomsaes"
               detail={`${poomsaes.length} formas registradas`}
             />
-            <Button onClick={() => setPoomsaeModal(true)} variant="secondary">
+            <Button onClick={handleOpenCreatePoomsae} variant="secondary">
               <Icon name="plus" /> Poomsae
             </Button>
           </div>
@@ -835,9 +1098,9 @@ function TkdView() {
           ) : (
             <div className="poomsae-list">
               {poomsaes.map((item) => (
-                <div className="poomsae-row group relative" key={item.id}>
+                <div className="poomsae-row group relative flex items-center justify-between" key={item.id}>
                   <div className="rank">品</div>
-                  <div className="flex-1">
+                  <div className="flex-1 pr-4">
                     <h3 className="flex items-center justify-between">
                       <span>{item.poomsae_name}</span>
                       <span className="text-[10px] text-slate-400 font-normal">{item.category}</span>
@@ -847,11 +1110,18 @@ function TkdView() {
                       <i style={{ width: `${item.mastery_percentage}%` }} />
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     <b>{item.mastery_percentage}%</b>
                     <button
+                      onClick={() => handleOpenEditPoomsae(item)}
+                      className="text-slate-500 hover:text-white p-1"
+                      title="Editar Poomsae"
+                    >
+                      <Icon name="edit" size={13} />
+                    </button>
+                    <button
                       onClick={() => item.id && handleDeletePoomsae(item.id)}
-                      className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-rose-400 p-1"
+                      className="text-slate-500 hover:text-rose-400 p-1"
                       title="Eliminar"
                     >
                       <Icon name="trash" size={13} />
@@ -863,10 +1133,11 @@ function TkdView() {
           )}
         </section>
 
+        {/* TORNEOS & PARTICIPACIONES (Req 8) */}
         <section className="card competitions">
           <div className="flex items-center justify-between mb-4">
             <SectionTitle eyebrow="CALENDARIO WT" title="Torneos & Participaciones" />
-            <Button onClick={() => setCompModal(true)} variant="secondary">
+            <Button onClick={handleOpenCreateComp} variant="secondary">
               <Icon name="plus" /> Torneo
             </Button>
           </div>
@@ -888,12 +1159,22 @@ function TkdView() {
                     <i />
                     <div className="flex items-center justify-between">
                       <span>{item.event_date}</span>
-                      <button
-                        onClick={() => item.id && handleDeleteCompetition(item.id)}
-                        className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-rose-400 p-1"
-                      >
-                        <Icon name="trash" size={12} />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleOpenEditComp(item)}
+                          className="text-slate-500 hover:text-white p-1"
+                          title="Editar torneo"
+                        >
+                          <Icon name="edit" size={12} />
+                        </button>
+                        <button
+                          onClick={() => item.id && handleDeleteCompetition(item.id)}
+                          className="text-slate-500 hover:text-rose-400 p-1"
+                          title="Eliminar"
+                        >
+                          <Icon name="trash" size={12} />
+                        </button>
+                      </div>
                     </div>
                     <h3>{item.event_name}</h3>
                     <p>
@@ -912,6 +1193,7 @@ function TkdView() {
           )}
         </section>
 
+        {/* OBJETIVOS DEPORTIVOS CON DETALLE Y MODAL (Req 9) */}
         <section className="card goals">
           <div className="flex items-center justify-between mb-4">
             <SectionTitle eyebrow="ROAD TO BLACK BELT" title="Objetivos deportivos" />
@@ -954,12 +1236,23 @@ function TkdView() {
                       <div className="text-[10px] text-slate-400">{item.description || item.category}</div>
                     </div>
                   </button>
-                  <button
-                    onClick={() => item.id && handleDeleteGoal(item.id)}
-                    className="p-1 text-slate-500 hover:text-rose-400"
-                  >
-                    <Icon name="trash" size={13} />
-                  </button>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setGoalDetailModal(item)}
+                      className="p-1 text-slate-400 hover:text-emerald-400"
+                      title="Ver detalles"
+                    >
+                      <Icon name="arrow" size={13} />
+                    </button>
+                    <button
+                      onClick={() => item.id && handleDeleteGoal(item.id)}
+                      className="p-1 text-slate-500 hover:text-rose-400"
+                      title="Eliminar"
+                    >
+                      <Icon name="trash" size={13} />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -967,7 +1260,7 @@ function TkdView() {
         </section>
       </div>
 
-      {/* MODALES PESTAÑA 2 */}
+      {/* MODALES TAEKWONDO WT */}
       {profileModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
@@ -1049,7 +1342,7 @@ function TkdView() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-base font-bold text-white">Nuevo Poomsae</h3>
+              <h3 className="text-base font-bold text-white">{editingPoomsaeId ? "Editar Poomsae" : "Nuevo Poomsae"}</h3>
               <button onClick={() => setPoomsaeModal(false)} className="text-slate-400 hover:text-white">
                 <Icon name="close" size={18} />
               </button>
@@ -1104,7 +1397,7 @@ function TkdView() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-base font-bold text-white">Nuevo Torneo / Evento WT</h3>
+              <h3 className="text-base font-bold text-white">{editingCompId ? "Editar Torneo" : "Nuevo Torneo WT"}</h3>
               <button onClick={() => setCompModal(false)} className="text-slate-400 hover:text-white">
                 <Icon name="close" size={18} />
               </button>
@@ -1222,6 +1515,39 @@ function TkdView() {
           </div>
         </div>
       )}
+
+      {/* VISTA EN DETALLE DE OBJETIVO (Req 9) */}
+      {goalDetailModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-white">Detalle de Objetivo</h3>
+              <button onClick={() => setGoalDetailModal(null)} className="text-slate-400 hover:text-white">
+                <Icon name="close" size={18} />
+              </button>
+            </div>
+            <div className="space-y-2 text-xs">
+              <div>
+                <span className="text-slate-500 block">TÍTULO</span>
+                <b className="text-white text-sm">{goalDetailModal.title}</b>
+              </div>
+              <div>
+                <span className="text-slate-500 block">DESCRIPCIÓN / FECHA</span>
+                <p className="text-slate-300">{goalDetailModal.description || "Sin descripción"}</p>
+              </div>
+              <div>
+                <span className="text-slate-500 block">ESTADO</span>
+                <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${goalDetailModal.is_completed ? "bg-emerald-500/20 text-emerald-400" : "bg-amber-500/20 text-amber-400"}`}>
+                  {goalDetailModal.is_completed ? "Completado" : "Pendiente"}
+                </span>
+              </div>
+            </div>
+            <div className="flex justify-end border-t border-slate-800 pt-3">
+              <Button onClick={() => setGoalDetailModal(null)}>Cerrar</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   )
 }
@@ -1234,14 +1560,18 @@ function BodyView() {
   const [measurements, setMeasurements] = useState<BodyMeasurementLog[]>([])
   const [habits, setHabits] = useState<Habit[]>([])
   const [dailyLogs, setDailyLogs] = useState<HabitDailyLog[]>([])
+
+  // REQUERIMIENTO 11: SELECCIÓN DE ZONA
   const [selectedZone, setSelectedZone] = useState("Glúteos/Cadera")
 
   // Modales
   const [weightModal, setWeightModal] = useState(false)
+  const [weightHistoryModal, setWeightHistoryModal] = useState(false) // Req 10
   const [measureModal, setMeasureModal] = useState(false)
   const [habitModal, setHabitModal] = useState(false)
+  const [editingHabitId, setEditingHabitId] = useState<string | null>(null) // Req 12
 
-  // Forms
+  // Formularios
   const [weightInput, setWeightInput] = useState("")
   const [measureForm, setMeasureForm] = useState<Partial<BodyMeasurementLog>>({
     zone: "Glúteos/Cadera",
@@ -1273,10 +1603,14 @@ function BodyView() {
   }, [])
 
   const latestWeight = weightLogs[0]?.weight_kg || 68.5
-  const latestGluteMeasure =
-    measurements.find((m) => m.zone === "Glúteos/Cadera")?.measurement_cm || 101.4
 
-  const handleSaveWeight = async (e: React.FormEvent) => {
+  // Medida dinámica según la zona seleccionada (Req 11)
+  const activeZoneMeasurement =
+    measurements.find((m) => m.zone === selectedZone)?.measurement_cm ||
+    (selectedZone === "Glúteos/Cadera" ? 101.4 : 75.0)
+
+  // REQUERIMIENTO 10: REGISTRAR Y MOSTRAR ÚLTIMOS 10 PESOS
+  const handleSaveWeight = async (e: FormEvent) => {
     e.preventDefault()
     const num = parseFloat(weightInput)
     if (!num) return
@@ -1286,7 +1620,8 @@ function BodyView() {
     loadBodyData()
   }
 
-  const handleSaveMeasurement = async (e: React.FormEvent) => {
+  // REQUERIMIENTO 11: REGISTRAR MEDIDAS MULTIZONA
+  const handleSaveMeasurement = async (e: FormEvent) => {
     e.preventDefault()
     if (!measureForm.measurement_cm) return
     await logBodyMeasurement(measureForm as BodyMeasurementLog)
@@ -1294,12 +1629,27 @@ function BodyView() {
     loadBodyData()
   }
 
-  const handleSaveHabit = async (e: React.FormEvent) => {
+  // REQUERIMIENTO 12: CRUD HÁBITOS & SUPLEMENTOS
+  const handleOpenCreateHabit = () => {
+    setEditingHabitId(null)
+    setHabitForm({ name: "", type: "Suplemento", target_daily: "5g" })
+    setHabitModal(true)
+  }
+
+  const handleOpenEditHabit = (h: Habit) => {
+    setEditingHabitId(h.id || null)
+    setHabitForm(h)
+    setHabitModal(true)
+  }
+
+  const handleSaveHabit = async (e: FormEvent) => {
     e.preventDefault()
     if (!habitForm.name) return
+    if (editingHabitId) {
+      await deleteHabit(editingHabitId)
+    }
     await createHabit(habitForm as Habit)
     setHabitModal(false)
-    setHabitForm({ name: "", type: "Suplemento", target_daily: "5g" })
     loadBodyData()
   }
 
@@ -1318,18 +1668,17 @@ function BodyView() {
     }
   }
 
-  // CÁLCULO DE COORDENADAS DINÁMICAS SVG (Tendencia)
+  // REQUERIMIENTO 13: CÁLCULO DE COORDENADAS DINÁMICAS SVG (PESO VERDE, MEDIDAS MORADAS)
   const generateSvgPoints = () => {
-    // Reversar para orden cronológico
     const sortedWeights = [...weightLogs].reverse()
     const sortedMeasures = [...measurements]
-      .filter((m) => m.zone === "Glúteos/Cadera")
+      .filter((m) => m.zone === selectedZone)
       .reverse()
 
     if (sortedWeights.length === 0) {
       return {
         weightPath: "M0 150 L200 140 L400 130 L600 120 L800 110 L1000 100",
-        glutePath: "M0 215 C230 185 470 145 730 105 1000 55",
+        glutePath: "M0 215 L230 185 L470 145 L730 105 L1000 55",
         gluteDots: [
           { x: 0, y: 215 },
           { x: 230, y: 185 },
@@ -1344,21 +1693,23 @@ function BodyView() {
 
     const weightPoints = sortedWeights.map((w, i) => {
       const x = Math.round(i * stepX)
-      // Mapear min 60kg max 80kg a coordenada Y 250 -> 30
-      const y = Math.round(250 - ((w.weight_kg - 60) / 20) * 220)
+      const y = Math.round(250 - ((w.weight_kg - 50) / 40) * 220)
       return `${x} ${y}`
     })
 
+    const gluteStepX = 1000 / Math.max(sortedMeasures.length - 1, 1)
     const glutePoints = sortedMeasures.map((m, i) => {
-      const x = Math.round(i * (1000 / Math.max(sortedMeasures.length - 1, 1)))
-      // Mapear min 90cm max 110cm a coordenada Y 250 -> 30
-      const y = Math.round(250 - ((m.measurement_cm - 90) / 20) * 220)
+      const x = Math.round(i * gluteStepX)
+      const y = Math.round(250 - ((m.measurement_cm - 50) / 60) * 220)
       return { x, y }
     })
 
     return {
       weightPath: `M${weightPoints.join(" L")}`,
-      glutePath: glutePoints.length > 0 ? `M${glutePoints.map((p) => `${p.x}${p.y}`).join(" L")}` : "M0 200 L1000 100",
+      glutePath:
+        glutePoints.length > 0
+          ? `M${glutePoints.map((p) => `${p.x} ${p.y}`).join(" L")}`
+          : "M0 200 L1000 100",
       gluteDots: glutePoints,
     }
   }
@@ -1387,30 +1738,38 @@ function BodyView() {
 
       {/* METRICS GRID */}
       <div className="metrics-grid">
-        {/* CARDI 1: PESO CORPORAL */}
+        {/* REQUERIMIENTO 10: PESO CORPORAL CON HISTORIAL */}
         <article className="metric-card green relative group">
           <div className="flex items-center justify-between mb-2">
             <div className="metric-icon">
               <Icon name="activity" />
             </div>
-            <button
-              onClick={() => setWeightModal(true)}
-              className="text-xs text-emerald-400 hover:underline flex items-center gap-1 font-semibold"
-            >
-              <Icon name="plus" size={12} /> Registrar Peso
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setWeightHistoryModal(true)}
+                className="text-[10px] text-slate-400 hover:text-white underline"
+              >
+                Ver 10 registros
+              </button>
+              <button
+                onClick={() => setWeightModal(true)}
+                className="text-xs text-emerald-400 hover:underline flex items-center gap-1 font-semibold"
+              >
+                <Icon name="plus" size={12} /> Registrar Peso
+              </button>
+            </div>
           </div>
           <span>PESO CORPORAL ACTUAL</span>
           <h2>
             {latestWeight} <small>kg</small>
           </h2>
-          <p>Últimos 10 registros logueados en Supabase</p>
+          <p>Sincronizado desde Supabase ({weightLogs.length} logs)</p>
           <div className="metric-progress">
             <i style={{ width: "75%" }} />
           </div>
         </article>
 
-        {/* CARD 2: MEDIDA MULTIZONA */}
+        {/* REQUERIMIENTO 11: MEDIDAS CORPORALES MULTIZONA */}
         <article className="metric-card purple relative group">
           <div className="flex items-center justify-between mb-2">
             <div className="metric-icon">
@@ -1423,24 +1782,24 @@ function BodyView() {
               <Icon name="plus" size={12} /> Registrar Medida
             </button>
           </div>
-          <span>MEDIDA GLÚTEO / CADERA</span>
+          <span>MEDIDA {selectedZone.toUpperCase()}</span>
           <h2>
-            {latestGluteMeasure} <small>cm</small>
+            {activeZoneMeasurement} <small>cm</small>
           </h2>
-          <p>Hipertrofia de glúteo & potencia posterior</p>
+          <p>Seguimiento de progreso en {selectedZone}</p>
           <div className="metric-progress">
             <i style={{ width: "85%" }} />
           </div>
         </article>
 
-        {/* CARD 3: SUPLEMENTACIÓN & HÁBITOS */}
+        {/* REQUERIMIENTO 12: SUPLEMENTACIÓN & HÁBITOS CRUD */}
         <article className="metric-card habits">
           <div className="flex items-center justify-between mb-2">
             <div className="metric-icon">
               <Icon name="flame" />
             </div>
             <button
-              onClick={() => setHabitModal(true)}
+              onClick={handleOpenCreateHabit}
               className="text-xs text-emerald-400 hover:underline flex items-center gap-1 font-semibold"
             >
               <Icon name="plus" size={12} /> Nuevo Hábito
@@ -1460,7 +1819,7 @@ function BodyView() {
                   <button
                     type="button"
                     onClick={() => handleToggleHabitCheck(item.id)}
-                    className="flex items-center gap-2 text-left"
+                    className="flex items-center gap-2 text-left flex-1"
                   >
                     <i className={`w-4 h-4 rounded border flex items-center justify-center ${isDone ? "bg-emerald-500 border-emerald-500 text-slate-950 font-bold" : "border-slate-700 bg-slate-950"}`}>
                       {isDone && <Icon name="check" size={10} />}
@@ -1469,12 +1828,22 @@ function BodyView() {
                       {item.name} <small className="text-slate-500">({item.target_daily})</small>
                     </span>
                   </button>
-                  <button
-                    onClick={() => item.id && handleDeleteHabitItem(item.id)}
-                    className="text-slate-600 hover:text-rose-400 p-1"
-                  >
-                    <Icon name="trash" size={11} />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleOpenEditHabit(item)}
+                      className="text-slate-500 hover:text-white p-1"
+                      title="Editar"
+                    >
+                      <Icon name="edit" size={11} />
+                    </button>
+                    <button
+                      onClick={() => item.id && handleDeleteHabitItem(item.id)}
+                      className="text-slate-600 hover:text-rose-400 p-1"
+                      title="Eliminar"
+                    >
+                      <Icon name="trash" size={11} />
+                    </button>
+                  </div>
                 </div>
               )
             })}
@@ -1482,7 +1851,7 @@ function BodyView() {
         </article>
       </div>
 
-      {/* DYNAMIC SVG CHART CARD */}
+      {/* REQUERIMIENTO 13: GRÁFICO SVG DINÁMICO */}
       <section className="card chart-card mt-6">
         <div className="chart-head">
           <div>
@@ -1494,15 +1863,18 @@ function BodyView() {
               <i className="weight" /> Peso corporal (Verde)
             </span>
             <span>
-              <i className="glute" /> Medida glúteo (Morado)
+              <i className="glute" /> Medida {selectedZone} (Morado)
             </span>
-            <div className="flex items-center gap-1">
+            {/* SELECTOR DE ZONA PARA EL GRÁFICO Y MÉTRICAS */}
+            <div className="flex items-center gap-1 flex-wrap">
               {["Glúteos/Cadera", "Cintura", "Muslos", "Brazos", "Pecho"].map((zone) => (
                 <button
                   key={zone}
                   onClick={() => setSelectedZone(zone)}
-                  className={`px-2 py-0.5 rounded text-[10px] ${
-                    selectedZone === zone ? "bg-purple-500/20 text-purple-300 border border-purple-500/40" : "text-slate-500"
+                  className={`px-2 py-0.5 rounded text-[10px] cursor-pointer transition-all ${
+                    selectedZone === zone
+                      ? "bg-purple-500/20 text-purple-300 border border-purple-500/40 font-bold"
+                      : "text-slate-500 hover:text-slate-300"
                   }`}
                 >
                   {zone}
@@ -1514,11 +1886,11 @@ function BodyView() {
 
         <div className="chart">
           <div className="y-labels">
-            <span>105 cm / kg</span>
-            <span>100 cm / kg</span>
+            <span>110 cm / kg</span>
             <span>95 cm / kg</span>
-            <span>90 cm / kg</span>
-            <span>85 cm / kg</span>
+            <span>80 cm / kg</span>
+            <span>65 cm / kg</span>
+            <span>50 cm / kg</span>
           </div>
           <svg
             viewBox="0 0 1000 280"
@@ -1555,12 +1927,12 @@ function BodyView() {
             ))}
           </svg>
           <div className="x-labels">
-            <span>REGISTROS RECIENTES SINC DE SUPABASE</span>
+            <span>REGISTROS HISTÓRICOS DE SUPABASE EN ORDEN CRONOLÓGICO</span>
           </div>
         </div>
       </section>
 
-      {/* MODALES PESTAÑA 3 */}
+      {/* MODALES RECOMPOSICIÓN CORPORAL */}
       {weightModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
           <div className="w-full max-w-sm space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
@@ -1596,6 +1968,35 @@ function BodyView() {
         </div>
       )}
 
+      {/* REQUERIMIENTO 10: MODAL VER ÚLTIMOS 10 PESOS */}
+      {weightHistoryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-white">Historial de Peso (Últimos 10)</h3>
+              <button onClick={() => setWeightHistoryModal(false)} className="text-slate-400 hover:text-white">
+                <Icon name="close" size={18} />
+              </button>
+            </div>
+            <div className="space-y-2 max-h-60 overflow-y-auto text-xs">
+              {weightLogs.length === 0 ? (
+                <div className="text-slate-500 text-center py-4">Sin datos de peso guardados.</div>
+              ) : (
+                weightLogs.map((item, idx) => (
+                  <div key={item.id || idx} className="flex items-center justify-between p-2 rounded-lg bg-slate-950 border border-slate-800">
+                    <span className="text-slate-400">{item.log_date || "Fecha reciente"}</span>
+                    <b className="text-emerald-400 font-bold">{item.weight_kg} kg</b>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="flex justify-end border-t border-slate-800 pt-3">
+              <Button onClick={() => setWeightHistoryModal(false)}>Cerrar</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {measureModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
           <div className="w-full max-w-sm space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
@@ -1609,7 +2010,7 @@ function BodyView() {
               <div>
                 <label className="block text-slate-400 mb-1">Zona Corporal</label>
                 <select
-                  value={measureForm.zone || "Glúteos/Cadera"}
+                  value={measureForm.zone || selectedZone}
                   onChange={(e) => setMeasureForm({ ...measureForm, zone: e.target.value })}
                   className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
                 >
@@ -1649,7 +2050,7 @@ function BodyView() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
           <div className="w-full max-w-sm space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-base font-bold text-white">Nuevo Hábito / Suplemento</h3>
+              <h3 className="text-base font-bold text-white">{editingHabitId ? "Editar Hábito" : "Nuevo Hábito / Suplemento"}</h3>
               <button onClick={() => setHabitModal(false)} className="text-slate-400 hover:text-white">
                 <Icon name="close" size={18} />
               </button>
@@ -1818,6 +2219,7 @@ export default function GymPage() {
   const [active, setActive] = useState("gym")
   const [drawer, setDrawer] = useState(false)
   const [activeRoutine, setActiveRoutine] = useState<GymRoutine | null>(null)
+  const [weekOffset, setWeekOffset] = useState(0) // Req 4
 
   const [routines, setRoutines] = useState<GymRoutine[]>([])
   const [loading, setLoading] = useState(true)
@@ -1828,7 +2230,7 @@ export default function GymPage() {
     { kg: "87.5", reps: "8", rpe: "9" },
   ])
 
-  // Modal para Crear/Editar Rutina
+  // Modal para Crear/Editar Rutina (Req 1)
   const [routineModalOpen, setRoutineModalOpen] = useState(false)
   const [editingRoutine, setEditingRoutine] = useState<GymRoutine | null>(null)
   const [routineFormData, setRoutineFormData] = useState<Partial<GymRoutine>>({
@@ -1870,7 +2272,7 @@ export default function GymPage() {
     setRoutineModalOpen(true)
   }
 
-  const handleSaveRoutineForm = async (e: React.FormEvent) => {
+  const handleSaveRoutineForm = async (e: FormEvent) => {
     e.preventDefault()
     if (!routineFormData.title) return
 
@@ -1931,6 +2333,8 @@ export default function GymPage() {
         setActive={setActive}
         openDrawer={() => handleOpenDrawerWithRoutine()}
         openRoutineModal={handleOpenCreateModal}
+        weekOffset={weekOffset}
+        setWeekOffset={setWeekOffset}
       />
       {active === "gym" && (
         <GymView
@@ -1942,6 +2346,7 @@ export default function GymPage() {
           onDelete={handleDeleteRoutineItem}
           sets={sets}
           setSets={setSets}
+          weekOffset={weekOffset}
         />
       )}
       {active === "tkd" && <TkdView />}
@@ -1954,7 +2359,7 @@ export default function GymPage() {
         onSaveWorkout={handleSaveActiveWorkout}
       />
 
-      {/* MODAL CREAR / EDITAR RUTINA */}
+      {/* MODAL CREAR / EDITAR RUTINA (Req 1) */}
       {routineModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
