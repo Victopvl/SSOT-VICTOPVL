@@ -9,22 +9,33 @@ import {
   upsertTkdProfile,
   fetchTkdPoomsaes,
   createTkdPoomsae,
-  updateTkdPoomsae,
   deleteTkdPoomsae,
   fetchTkdCompetitions,
   createTkdCompetition,
-  updateTkdCompetition,
   deleteTkdCompetition,
   fetchTkdGoals,
   createTkdGoal,
   toggleTkdGoal,
   deleteTkdGoal,
+  logBodyWeight,
+  fetchRecentBodyWeightLogs,
+  logBodyMeasurement,
+  fetchMeasurementLogsByZone,
+  fetchActiveHabits,
+  createHabit,
+  deleteHabit,
+  logDailyHabit,
+  fetchDailyHabitLogs,
   type GymRoutine,
   type GymSetLog,
   type TkdProfile,
   type TkdPoomsae,
   type TkdCompetition,
   type TkdGoal,
+  type BodyWeightLog,
+  type BodyMeasurementLog,
+  type Habit,
+  type HabitDailyLog,
 } from "../lib/gymService"
 
 type IconName =
@@ -356,6 +367,9 @@ function SectionTitle({
   )
 }
 
+// ==========================================
+// PESTAÑA 1: GYM & PROGRAMACIÓN
+// ==========================================
 function GymView({
   openDrawer,
   routines,
@@ -629,6 +643,9 @@ function GymView({
   )
 }
 
+// ==========================================
+// PESTAÑA 2: TAEKWONDO WT
+// ==========================================
 function TkdView() {
   const [profile, setProfile] = useState<TkdProfile>({
     belt_grade: "Cinturón Rojo 2° Gup",
@@ -643,7 +660,7 @@ function TkdView() {
   const [goals, setGoals] = useState<TkdGoal[]>([])
   const [loading, setLoading] = useState(true)
 
-  // Modales Pestaña 2
+  // Modales
   const [profileModal, setProfileModal] = useState(false)
   const [poomsaeModal, setPoomsaeModal] = useState(false)
   const [compModal, setCompModal] = useState(false)
@@ -691,7 +708,6 @@ function TkdView() {
     loadTkdData()
   }, [])
 
-  // Cálculo dinámico de días restantes
   const getDaysRemaining = () => {
     if (!profile.next_tournament_date) return 32
     const target = new Date(profile.next_tournament_date)
@@ -762,7 +778,6 @@ function TkdView() {
 
   return (
     <main className="page">
-      {/* 1. MARTIAL BANNER CON EDITAR */}
       <section className="martial-banner relative group">
         <button
           onClick={() => setProfileModal(true)}
@@ -799,7 +814,6 @@ function TkdView() {
       </section>
 
       <div className="tkd-grid">
-        {/* 2. POOMSAES CARD */}
         <section className="card poomsae-card">
           <div className="flex items-center justify-between mb-4">
             <SectionTitle
@@ -849,7 +863,6 @@ function TkdView() {
           )}
         </section>
 
-        {/* 3. CALENDARIO DE TORNEOS */}
         <section className="card competitions">
           <div className="flex items-center justify-between mb-4">
             <SectionTitle eyebrow="CALENDARIO WT" title="Torneos & Participaciones" />
@@ -899,7 +912,6 @@ function TkdView() {
           )}
         </section>
 
-        {/* 4. OBJETIVOS DEPORTIVOS */}
         <section className="card goals">
           <div className="flex items-center justify-between mb-4">
             <SectionTitle eyebrow="ROAD TO BLACK BELT" title="Objetivos deportivos" />
@@ -955,7 +967,7 @@ function TkdView() {
         </section>
       </div>
 
-      {/* MODAL: EDITAR PERFIL TKD */}
+      {/* MODALES PESTAÑA 2 */}
       {profileModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
@@ -1033,7 +1045,6 @@ function TkdView() {
         </div>
       )}
 
-      {/* MODAL: NUEVO POOMSAE */}
       {poomsaeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
@@ -1089,7 +1100,6 @@ function TkdView() {
         </div>
       )}
 
-      {/* MODAL: NUEVO TORNEO */}
       {compModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
@@ -1169,7 +1179,6 @@ function TkdView() {
         </div>
       )}
 
-      {/* MODAL: NUEVO OBJETIVO */}
       {goalModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
@@ -1217,130 +1226,299 @@ function TkdView() {
   )
 }
 
-function MetricCard({
-  icon,
-  label,
-  value,
-  suffix,
-  detail,
-  accent,
-}: {
-  icon: IconName
-  label: string
-  value: string
-  suffix: string
-  detail: string
-  accent: string
-}) {
-  return (
-    <article className={`metric-card ${accent}`}>
-      <div className="metric-icon">
-        <Icon name={icon} />
-      </div>
-      <span>{label}</span>
-      <h2>
-        {value}
-        <small>{suffix}</small>
-      </h2>
-      <p>{detail}</p>
-      <div className="metric-progress">
-        <i />
-      </div>
-    </article>
-  )
-}
-
+// ==========================================
+// PESTAÑA 3: RECOMPOSICIÓN CORPORAL & HÁBITOS
+// ==========================================
 function BodyView() {
-  const [habits, setHabits] = useState([true, true, false])
+  const [weightLogs, setWeightLogs] = useState<BodyWeightLog[]>([])
+  const [measurements, setMeasurements] = useState<BodyMeasurementLog[]>([])
+  const [habits, setHabits] = useState<Habit[]>([])
+  const [dailyLogs, setDailyLogs] = useState<HabitDailyLog[]>([])
+  const [selectedZone, setSelectedZone] = useState("Glúteos/Cadera")
+
+  // Modales
+  const [weightModal, setWeightModal] = useState(false)
+  const [measureModal, setMeasureModal] = useState(false)
+  const [habitModal, setHabitModal] = useState(false)
+
+  // Forms
+  const [weightInput, setWeightInput] = useState("")
+  const [measureForm, setMeasureForm] = useState<Partial<BodyMeasurementLog>>({
+    zone: "Glúteos/Cadera",
+    measurement_cm: 100,
+    notes: "",
+  })
+  const [habitForm, setHabitForm] = useState<Partial<Habit>>({
+    name: "",
+    type: "Suplemento",
+    target_daily: "5g",
+  })
+
+  const loadBodyData = async () => {
+    const weights = await fetchRecentBodyWeightLogs(10)
+    setWeightLogs(weights)
+
+    const measures = await fetchMeasurementLogsByZone()
+    setMeasurements(measures)
+
+    const activeHabits = await fetchActiveHabits()
+    setHabits(activeHabits)
+
+    const logs = await fetchDailyHabitLogs()
+    setDailyLogs(logs)
+  }
+
+  useEffect(() => {
+    loadBodyData()
+  }, [])
+
+  const latestWeight = weightLogs[0]?.weight_kg || 68.5
+  const latestGluteMeasure =
+    measurements.find((m) => m.zone === "Glúteos/Cadera")?.measurement_cm || 101.4
+
+  const handleSaveWeight = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const num = parseFloat(weightInput)
+    if (!num) return
+    await logBodyWeight(num)
+    setWeightModal(false)
+    setWeightInput("")
+    loadBodyData()
+  }
+
+  const handleSaveMeasurement = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!measureForm.measurement_cm) return
+    await logBodyMeasurement(measureForm as BodyMeasurementLog)
+    setMeasureModal(false)
+    loadBodyData()
+  }
+
+  const handleSaveHabit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!habitForm.name) return
+    await createHabit(habitForm as Habit)
+    setHabitModal(false)
+    setHabitForm({ name: "", type: "Suplemento", target_daily: "5g" })
+    loadBodyData()
+  }
+
+  const handleToggleHabitCheck = async (habitId?: string) => {
+    if (!habitId) return
+    const existingLog = dailyLogs.find((l) => l.habit_id === habitId)
+    const newStatus = !existingLog?.completed
+    await logDailyHabit(habitId, newStatus)
+    loadBodyData()
+  }
+
+  const handleDeleteHabitItem = async (habitId: string) => {
+    if (confirm("¿Eliminar este hábito/suplemento?")) {
+      await deleteHabit(habitId)
+      loadBodyData()
+    }
+  }
+
+  // CÁLCULO DE COORDENADAS DINÁMICAS SVG (Tendencia)
+  const generateSvgPoints = () => {
+    // Reversar para orden cronológico
+    const sortedWeights = [...weightLogs].reverse()
+    const sortedMeasures = [...measurements]
+      .filter((m) => m.zone === "Glúteos/Cadera")
+      .reverse()
+
+    if (sortedWeights.length === 0) {
+      return {
+        weightPath: "M0 150 L200 140 L400 130 L600 120 L800 110 L1000 100",
+        glutePath: "M0 215 C230 185 470 145 730 105 1000 55",
+        gluteDots: [
+          { x: 0, y: 215 },
+          { x: 230, y: 185 },
+          { x: 470, y: 145 },
+          { x: 730, y: 105 },
+          { x: 1000, y: 55 },
+        ],
+      }
+    }
+
+    const stepX = 1000 / Math.max(sortedWeights.length - 1, 1)
+
+    const weightPoints = sortedWeights.map((w, i) => {
+      const x = Math.round(i * stepX)
+      // Mapear min 60kg max 80kg a coordenada Y 250 -> 30
+      const y = Math.round(250 - ((w.weight_kg - 60) / 20) * 220)
+      return `${x} ${y}`
+    })
+
+    const glutePoints = sortedMeasures.map((m, i) => {
+      const x = Math.round(i * (1000 / Math.max(sortedMeasures.length - 1, 1)))
+      // Mapear min 90cm max 110cm a coordenada Y 250 -> 30
+      const y = Math.round(250 - ((m.measurement_cm - 90) / 20) * 220)
+      return { x, y }
+    })
+
+    return {
+      weightPath: `M${weightPoints.join(" L")}`,
+      glutePath: glutePoints.length > 0 ? `M${glutePoints.map((p) => `${p.x}${p.y}`).join(" L")}` : "M0 200 L1000 100",
+      gluteDots: glutePoints,
+    }
+  }
+
+  const svgData = generateSvgPoints()
+
   return (
     <main className="page">
       <section className="hero-line">
         <div>
           <div className="eyebrow">
-            <span className="pulse-dot" /> RECOMPOSICIÓN · FASE 03
+            <span className="pulse-dot" /> RECOMPOSICIÓN CORPORAL · FASE 03
           </div>
           <h1>
             Construye fuerza. <span>Mide el cambio.</span>
           </h1>
-          <p>Composición corporal orientada a rendimiento y potencia.</p>
+          <p>Composición corporal orientada a rendimiento y potencia marcial.</p>
         </div>
         <div className="goal-chip">
           <Icon name="target" />
           <span>
-            OBJETIVO ACTUAL<b>−57 kg · Septiembre</b>
+            OBJETIVO ACTUAL<b>−57 kg · Categoría WT</b>
           </span>
         </div>
       </section>
+
+      {/* METRICS GRID */}
       <div className="metrics-grid">
-        <MetricCard
-          icon="activity"
-          label="PESO CORPORAL ACTUAL"
-          value="68.5"
-          suffix="kg"
-          detail="−1.2 kg este mes · Meta 62 kg"
-          accent="green"
-        />
-        <MetricCard
-          icon="trending"
-          label="MEDIDA GLÚTEO / CADERA"
-          value="101.4"
-          suffix="cm"
-          detail="+2.8 cm desde línea base"
-          accent="purple"
-        />
+        {/* CARDI 1: PESO CORPORAL */}
+        <article className="metric-card green relative group">
+          <div className="flex items-center justify-between mb-2">
+            <div className="metric-icon">
+              <Icon name="activity" />
+            </div>
+            <button
+              onClick={() => setWeightModal(true)}
+              className="text-xs text-emerald-400 hover:underline flex items-center gap-1 font-semibold"
+            >
+              <Icon name="plus" size={12} /> Registrar Peso
+            </button>
+          </div>
+          <span>PESO CORPORAL ACTUAL</span>
+          <h2>
+            {latestWeight} <small>kg</small>
+          </h2>
+          <p>Últimos 10 registros logueados en Supabase</p>
+          <div className="metric-progress">
+            <i style={{ width: "75%" }} />
+          </div>
+        </article>
+
+        {/* CARD 2: MEDIDA MULTIZONA */}
+        <article className="metric-card purple relative group">
+          <div className="flex items-center justify-between mb-2">
+            <div className="metric-icon">
+              <Icon name="trending" />
+            </div>
+            <button
+              onClick={() => setMeasureModal(true)}
+              className="text-xs text-purple-400 hover:underline flex items-center gap-1 font-semibold"
+            >
+              <Icon name="plus" size={12} /> Registrar Medida
+            </button>
+          </div>
+          <span>MEDIDA GLÚTEO / CADERA</span>
+          <h2>
+            {latestGluteMeasure} <small>cm</small>
+          </h2>
+          <p>Hipertrofia de glúteo & potencia posterior</p>
+          <div className="metric-progress">
+            <i style={{ width: "85%" }} />
+          </div>
+        </article>
+
+        {/* CARD 3: SUPLEMENTACIÓN & HÁBITOS */}
         <article className="metric-card habits">
-          <div className="metric-icon">
-            <Icon name="flame" />
+          <div className="flex items-center justify-between mb-2">
+            <div className="metric-icon">
+              <Icon name="flame" />
+            </div>
+            <button
+              onClick={() => setHabitModal(true)}
+              className="text-xs text-emerald-400 hover:underline flex items-center gap-1 font-semibold"
+            >
+              <Icon name="plus" size={12} /> Nuevo Hábito
+            </button>
           </div>
           <span>SUPLEMENTACIÓN & HÁBITOS</span>
           <h2>
-            2 <small>/ 3 completados</small>
+            {dailyLogs.filter((l) => l.completed).length}{" "}
+            <small>/ {habits.length} completados hoy</small>
           </h2>
-          {[
-            "Creatina 5g",
-            "Proteína (+120g)",
-            "Agua intra-entreno (2.5L / 3L)",
-          ].map((item, i) => (
-            <button
-              type="button"
-              key={item}
-              onClick={() =>
-                setHabits(habits.map((h, n) => (n === i ? !h : h)))
-              }
-            >
-              <i className={habits[i] ? "active" : ""}>
-                {habits[i] && <Icon name="check" size={11} />}
-              </i>
-              {item}
-            </button>
-          ))}
+
+          <div className="space-y-1.5 mt-3">
+            {habits.map((item) => {
+              const isDone = dailyLogs.some((l) => l.habit_id === item.id && l.completed)
+              return (
+                <div key={item.id} className="flex items-center justify-between text-xs">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleHabitCheck(item.id)}
+                    className="flex items-center gap-2 text-left"
+                  >
+                    <i className={`w-4 h-4 rounded border flex items-center justify-center ${isDone ? "bg-emerald-500 border-emerald-500 text-slate-950 font-bold" : "border-slate-700 bg-slate-950"}`}>
+                      {isDone && <Icon name="check" size={10} />}
+                    </i>
+                    <span className={isDone ? "line-through text-slate-400" : "text-white"}>
+                      {item.name} <small className="text-slate-500">({item.target_daily})</small>
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => item.id && handleDeleteHabitItem(item.id)}
+                    className="text-slate-600 hover:text-rose-400 p-1"
+                  >
+                    <Icon name="trash" size={11} />
+                  </button>
+                </div>
+              )
+            })}
+          </div>
         </article>
       </div>
-      <section className="card chart-card">
+
+      {/* DYNAMIC SVG CHART CARD */}
+      <section className="card chart-card mt-6">
         <div className="chart-head">
           <div>
             <span>PROGRESO CORPORAL</span>
-            <h2>Tendencia de métricas</h2>
+            <h2>Tendencia de métricas reales</h2>
           </div>
           <div className="legend">
             <span>
-              <i className="weight" /> Peso corporal
+              <i className="weight" /> Peso corporal (Verde)
             </span>
             <span>
-              <i className="glute" /> Medida glúteo
+              <i className="glute" /> Medida glúteo (Morado)
             </span>
-            <button type="button">
-              Últimos 6 meses <Icon name="chevron" />
-            </button>
+            <div className="flex items-center gap-1">
+              {["Glúteos/Cadera", "Cintura", "Muslos", "Brazos", "Pecho"].map((zone) => (
+                <button
+                  key={zone}
+                  onClick={() => setSelectedZone(zone)}
+                  className={`px-2 py-0.5 rounded text-[10px] ${
+                    selectedZone === zone ? "bg-purple-500/20 text-purple-300 border border-purple-500/40" : "text-slate-500"
+                  }`}
+                >
+                  {zone}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
+
         <div className="chart">
           <div className="y-labels">
-            <span>105</span>
-            <span>100</span>
-            <span>95</span>
-            <span>90</span>
-            <span>85</span>
+            <span>105 cm / kg</span>
+            <span>100 cm / kg</span>
+            <span>95 cm / kg</span>
+            <span>90 cm / kg</span>
+            <span>85 cm / kg</span>
           </div>
           <svg
             viewBox="0 0 1000 280"
@@ -1363,38 +1541,153 @@ function BodyView() {
                 className="grid-line"
               />
             ))}
-            <path
-              d="M0 70 C120 78 140 92 230 105 S380 130 470 150 S650 165 730 190 S880 205 1000 230 L1000 280 L0 280Z"
-              fill="url(#glow)"
-            />
-            <path
-              d="M0 70 C120 78 140 92 230 105 S380 130 470 150 S650 165 730 190 S880 205 1000 230"
-              className="weight-line"
-            />
-            <path
-              d="M0 215 C100 205 150 205 230 185 S390 175 470 145 S630 130 730 105 S900 85 1000 55"
-              className="glute-line"
-            />
-            {[0, 230, 470, 730, 1000].map((x, i) => (
+            <path d={`${svgData.weightPath} L1000 280 L0 280Z`} fill="url(#glow)" />
+            <path d={svgData.weightPath} className="weight-line" />
+            <path d={svgData.glutePath} className="glute-line" />
+            {svgData.gluteDots.map((dot, idx) => (
               <circle
-                key={x}
-                cx={x}
-                cy={[215, 185, 145, 105, 55][i]}
+                key={idx}
+                cx={dot.x}
+                cy={dot.y}
                 r="5"
                 className="dot-glute"
               />
             ))}
           </svg>
           <div className="x-labels">
-            <span>DIC</span>
-            <span>ENE</span>
-            <span>FEB</span>
-            <span>MAR</span>
-            <span>ABR</span>
-            <span>MAY</span>
+            <span>REGISTROS RECIENTES SINC DE SUPABASE</span>
           </div>
         </div>
       </section>
+
+      {/* MODALES PESTAÑA 3 */}
+      {weightModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-white">Registrar Peso Corporal</h3>
+              <button onClick={() => setWeightModal(false)} className="text-slate-400 hover:text-white">
+                <Icon name="close" size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleSaveWeight} className="space-y-3 text-xs">
+              <div>
+                <label className="block text-slate-400 mb-1">Peso Corporal (KG)</label>
+                <input
+                  required
+                  type="number"
+                  step="0.1"
+                  placeholder="Ej: 68.5"
+                  value={weightInput}
+                  onChange={(e) => setWeightInput(e.target.value)}
+                  className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+              <div className="flex items-center justify-end gap-2 border-t border-slate-800 pt-3">
+                <button type="button" onClick={() => setWeightModal(false)} className="rounded-xl bg-slate-800 px-4 py-2 font-semibold text-slate-300">
+                  Cancelar
+                </button>
+                <button type="submit" className="rounded-xl bg-emerald-500 px-4 py-2 font-semibold text-slate-950">
+                  Guardar Peso
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {measureModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-white">Registrar Medida Corporal</h3>
+              <button onClick={() => setMeasureModal(false)} className="text-slate-400 hover:text-white">
+                <Icon name="close" size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleSaveMeasurement} className="space-y-3 text-xs">
+              <div>
+                <label className="block text-slate-400 mb-1">Zona Corporal</label>
+                <select
+                  value={measureForm.zone || "Glúteos/Cadera"}
+                  onChange={(e) => setMeasureForm({ ...measureForm, zone: e.target.value })}
+                  className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
+                >
+                  <option value="Glúteos/Cadera">Glúteos/Cadera</option>
+                  <option value="Cintura">Cintura</option>
+                  <option value="Muslos">Muslos</option>
+                  <option value="Brazos">Brazos</option>
+                  <option value="Pecho">Pecho</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1">Medida (CM)</label>
+                <input
+                  required
+                  type="number"
+                  step="0.1"
+                  placeholder="Ej: 101.4"
+                  value={measureForm.measurement_cm || ""}
+                  onChange={(e) => setMeasureForm({ ...measureForm, measurement_cm: parseFloat(e.target.value) || 0 })}
+                  className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+              <div className="flex items-center justify-end gap-2 border-t border-slate-800 pt-3">
+                <button type="button" onClick={() => setMeasureModal(false)} className="rounded-xl bg-slate-800 px-4 py-2 font-semibold text-slate-300">
+                  Cancelar
+                </button>
+                <button type="submit" className="rounded-xl bg-emerald-500 px-4 py-2 font-semibold text-slate-950">
+                  Guardar Medida
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {habitModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-white">Nuevo Hábito / Suplemento</h3>
+              <button onClick={() => setHabitModal(false)} className="text-slate-400 hover:text-white">
+                <Icon name="close" size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleSaveHabit} className="space-y-3 text-xs">
+              <div>
+                <label className="block text-slate-400 mb-1">Nombre</label>
+                <input
+                  required
+                  type="text"
+                  placeholder="Ej: Creatina 5g"
+                  value={habitForm.name || ""}
+                  onChange={(e) => setHabitForm({ ...habitForm, name: e.target.value })}
+                  className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1">Objetivo Diario / Cantidad</label>
+                <input
+                  type="text"
+                  placeholder="Ej: 5g, 3.0L, +120g"
+                  value={habitForm.target_daily || ""}
+                  onChange={(e) => setHabitForm({ ...habitForm, target_daily: e.target.value })}
+                  className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+              <div className="flex items-center justify-end gap-2 border-t border-slate-800 pt-3">
+                <button type="button" onClick={() => setHabitModal(false)} className="rounded-xl bg-slate-800 px-4 py-2 font-semibold text-slate-300">
+                  Cancelar
+                </button>
+                <button type="submit" className="rounded-xl bg-emerald-500 px-4 py-2 font-semibold text-slate-950">
+                  Guardar Hábito
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </main>
   )
 }
