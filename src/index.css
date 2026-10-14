@@ -15,6 +15,7 @@
 
 body {
   margin: 0;
+  width: 100%;
   min-height: 100vh;
   background: #090d16;
   color: #f1f5f9;

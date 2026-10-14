@@ -15,7 +15,7 @@ export default function App() {
       />
 
       {/* Área de Contenido Principal */}
-      <div className="flex-1 overflow-x-hidden">
+      <div className="flex-1 min-w-0 overflow-x-hidden">
         {currentPage === "tasks" && <TasksPage />}
         {currentPage === "gym" && <GymPage />}
       </div>
