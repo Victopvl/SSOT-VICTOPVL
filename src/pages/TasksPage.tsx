@@ -955,71 +955,127 @@ export default function TasksPage() {
     <div className="min-h-screen bg-[#090d16] text-slate-100 selection:bg-indigo-500/30">
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(79,70,229,0.10),transparent_28%),radial-gradient(circle_at_90%_100%,rgba(124,58,237,0.08),transparent_30%)]" />
 
-      <header className="relative z-10 border-b border-slate-800/80 bg-[#090d16]/80 backdrop-blur-xl">
-        <div className="flex items-center gap-2.5 overflow-x-auto border-t border-slate-800/60 py-3 scrollbar-none">
-        <div className="flex shrink-0 rounded-xl border border-slate-800 bg-slate-900/70 p-1">
+<header className="relative z-10 border-b border-slate-800/80 bg-[#090d16]/80 backdrop-blur-xl">
+  <div className="mx-auto max-w-[1600px] px-7">
+    {/* Fila Superior: Título, Buscador y Botones de Creación */}
+    <div className="flex items-center gap-6 py-4">
+      <div className="flex min-w-52 items-center gap-3">
+        <div className="grid size-9 place-items-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-[0_0_24px_rgba(99,102,241,0.24)]">
+          <Sparkles className="size-4.5 text-white" />
+        </div>
+        <div>
+          <div className="text-base font-bold tracking-tight text-white">
+            Personal OS
+          </div>
+          <div className="mt-0.5 flex items-center gap-1.5 text-[10px] font-medium text-slate-500">
+            <span className="size-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
+            MVP v1.0
+          </div>
+        </div>
+      </div>
+
+      <div className="relative mx-auto w-full max-w-xl">
+        <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-600" />
+        <input
+          aria-label="Buscar tareas"
+          className="h-10 w-full rounded-xl border border-slate-800 bg-slate-900/80 pl-10 pr-4 text-sm text-slate-200 outline-none transition-colors placeholder:text-slate-600 focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/10"
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Buscar tareas..."
+          value={query}
+        />
+        <span className="absolute right-3 top-1/2 -translate-y-1/2 rounded border border-slate-700/70 px-1.5 py-0.5 text-[9px] font-semibold text-slate-600">
+          ⌘ K
+        </span>
+      </div>
+
+      <div className="flex shrink-0 items-center justify-end gap-2">
+        <AppButton
+          className="h-10 gap-2 whitespace-nowrap rounded-xl border border-slate-700/80 bg-slate-900 px-3.5 text-xs font-semibold text-slate-300 hover:border-indigo-400/40 hover:text-white"
+          onClick={() => setTypeDialogOpen(true)}
+        >
+          <Plus className="size-3.5" />
+          Nuevo tipo
+        </AppButton>
+        <AppButton
+          className="h-10 gap-2 whitespace-nowrap rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 px-4 text-xs font-semibold text-white shadow-[0_8px_26px_rgba(79,70,229,0.28)] hover:from-indigo-400 hover:to-violet-500"
+          onClick={openNewTask}
+        >
+          <Plus className="size-4" strokeWidth={2.5} />
+          Nueva tarea
+        </AppButton>
+        <div className="grid size-10 shrink-0 place-items-center rounded-full border border-slate-700 bg-gradient-to-br from-slate-700 to-slate-900 text-xs font-bold text-slate-200 ring-2 ring-slate-900">
+          JA
+        </div>
+      </div>
+    </div>
+
+    {/* Fila Inferior: Filtros de Estado, Prioridad y Tipos */}
+    <div className="flex items-center gap-2.5 overflow-x-auto border-t border-slate-800/60 py-3 scrollbar-none">
+      <div className="flex shrink-0 rounded-xl border border-slate-800 bg-slate-900/70 p-1">
         {[
-            { label: "Todas", value: "all" },
-            { label: "Pendientes", value: "pending" },
-            { label: "Completadas", value: "completed" },
-        ].map((item) => (<AppButton
-        className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-[11px] font-medium transition-colors ${
-          filter === item.value
-            ? "bg-slate-700/80 text-white shadow-sm"
-            : "text-slate-500 hover:text-slate-300"
-        }`}
-        key={item.value}
-        onClick={() => setFilter(item.value as Filter)}
-      >
-        {item.label}
-      </AppButton>
-    ))}
+          { label: "Todas", value: "all" },
+          { label: "Pendientes", value: "pending" },
+          { label: "Completadas", value: "completed" },
+        ].map((item) => (
+          <AppButton
+            className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-[11px] font-medium transition-colors ${
+              filter === item.value
+                ? "bg-slate-700/80 text-white shadow-sm"
+                : "text-slate-500 hover:text-slate-300"
+            }`}
+            key={item.value}
+            onClick={() => setFilter(item.value as Filter)}
+          >
+            {item.label}
+          </AppButton>
+        ))}
+      </div>
+
+      <CompactSelect
+        label="Filtrar por prioridad"
+        onValueChange={(value) =>
+          setPriorityFilter(value as "all" | Priority)
+        }
+        options={[
+          { label: "Toda prioridad", value: "all" },
+          ...(["Baja", "Media", "Alta", "Urgente"] as Priority[]).map((item) => ({
+            label: item,
+            value: item,
+          })),
+        ]}
+        value={priorityFilter}
+      />
+
+      <div className="h-5 w-px shrink-0 bg-slate-800" />
+
+      <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+        <AppButton
+          className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-[10px] font-semibold ring-1 ring-inset ${
+            typeFilter === "all"
+              ? "bg-indigo-500/15 text-indigo-300 ring-indigo-400/30"
+              : "text-slate-500 ring-slate-800 hover:text-slate-300"
+          }`}
+          onClick={() => setTypeFilter("all")}
+        >
+          Todos los tipos
+        </AppButton>
+        {taskTypes.map((item) => (
+          <AppButton
+            className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-[10px] font-semibold ring-1 ring-inset ${
+              typeFilter === item
+                ? (typeStyles[item] ?? "bg-indigo-400/10 text-indigo-300 ring-indigo-400/20")
+                : "text-slate-500 ring-slate-800 hover:text-slate-300"
+            }`}
+            key={item}
+            onClick={() => setTypeFilter(item)}
+          >
+            {item}
+          </AppButton>
+        ))}
+      </div>
+    </div>
   </div>
-
-  <CompactSelect
-    label="Filtrar por prioridad"
-    onValueChange={(value) =>
-      setPriorityFilter(value as "all" | Priority)
-    }
-    options={[
-      { label: "Toda prioridad", value: "all" },
-      ...(["Baja", "Media", "Alta", "Urgente"] as Priority[]).map((item) => ({
-        label: item,
-        value: item,
-      })),
-    ]}
-    value={priorityFilter}
-  />
-
-  <div className="h-5 w-px shrink-0 bg-slate-800" />
-
-  <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
-    <AppButton
-      className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-[10px] font-semibold ring-1 ring-inset ${
-        typeFilter === "all"
-          ? "bg-indigo-500/15 text-indigo-300 ring-indigo-400/30"
-          : "text-slate-500 ring-slate-800 hover:text-slate-300"
-      }`}
-      onClick={() => setTypeFilter("all")}
-    >
-      Todos los tipos
-    </AppButton>
-    {taskTypes.map((item) => (
-      <AppButton
-        className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-[10px] font-semibold ring-1 ring-inset ${
-          typeFilter === item
-            ? (typeStyles[item] ?? "bg-indigo-400/10 text-indigo-300 ring-indigo-400/20")
-            : "text-slate-500 ring-slate-800 hover:text-slate-300"
-        }`}
-        key={item}
-        onClick={() => setTypeFilter(item)}
-      >
-        {item}
-      </AppButton>
-    ))}
-  </div>
-</div>
-      </header>
+</header>
 
       <main className="relative z-0 mx-auto flex max-w-[1600px] flex-col px-7 py-6">
         <div className="mb-5 flex items-end justify-between">
