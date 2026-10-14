@@ -1,4 +1,13 @@
 import { useEffect, useState, type ReactNode } from "react"
+import {
+  fetchWeeklyRoutines,
+  createGymRoutine,
+  updateGymRoutine,
+  deleteGymRoutine,
+  logGymSet,
+  type GymRoutine,
+  type GymSetLog,
+} from "../lib/gymService"
 
 type IconName =
   | "activity"
@@ -23,6 +32,8 @@ type IconName =
   | "sparkles"
   | "target"
   | "trending"
+  | "edit"
+  | "trash"
 
 const paths: Record<IconName, ReactNode> = {
   activity: <path d="M4 12h3l2.2-7 4 14 2.2-7H20" />,
@@ -71,9 +82,7 @@ const paths: Record<IconName, ReactNode> = {
   ),
   shield: <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />,
   sparkles: (
-    <>
-      <path d="m12 3 1.2 3.8L17 8l-3.8 1.2L12 13l-1.2-3.8L7 8l3.8-1.2L12 3ZM5 15l.7 2.3L8 18l-2.3.7L5 21l-.7-2.3L2 18l2.3-.7L5 15ZM19 13l.7 2.3 2.3.7-2.3.7L19 19l-.7-2.3L16 16l2.3-.7L19 13Z" />
-    </>
+    <path d="m12 3 1.2 3.8L17 8l-3.8 1.2L12 13l-1.2-3.8L7 8l3.8-1.2L12 3ZM5 15l.7 2.3L8 18l-2.3.7L5 21l-.7-2.3L2 18l2.3-.7L5 15ZM19 13l.7 2.3 2.3.7-2.3.7L19 19l-.7-2.3L16 16l2.3-.7L19 13Z" />
   ),
   target: (
     <>
@@ -83,6 +92,14 @@ const paths: Record<IconName, ReactNode> = {
     </>
   ),
   trending: <path d="m3 17 6-6 4 4 8-9M15 6h6v6" />,
+  edit: (
+    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+  ),
+  trash: (
+    <>
+      <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </>
+  ),
 }
 
 function Icon({ name, size = 16 }: { name: IconName; size?: number }) {
@@ -108,15 +125,17 @@ function Button({
   variant = "primary",
   className = "",
   onClick,
+  type = "button",
 }: {
   children: ReactNode
   variant?: "primary" | "secondary" | "ghost"
   className?: string
   onClick?: () => void
+  type?: "button" | "submit" | "reset"
 }) {
   return (
     <button
-      type="button"
+      type={type}
       onClick={onClick}
       className={`button button-${variant} ${className}`}
     >
@@ -141,70 +160,80 @@ const filters = [
   ["HIIT & Cardio", "heart"],
 ] as [string, IconName][]
 
-const week = [
+const defaultWeek: GymRoutine[] = [
   {
-    day: "LUN",
-    date: "12",
+    day_of_week: 1,
     title: "Pliometría & Potencia de Cadera",
-    type: "Pliometría",
-    time: "50 min",
-    focus: "Glúteos · Cuádriceps",
-    accent: "sky",
+    training_type: "Pliometría",
+    estimated_duration_min: 50,
+    target_focus: "Glúteos · Cuádriceps",
+    accent_color: "sky",
+    is_completed: true,
   },
   {
-    day: "MAR",
-    date: "13",
+    day_of_week: 2,
     title: "Fuerza Glúteos & Cadena Posterior",
-    type: "Fuerza",
-    time: "70 min",
-    focus: "Glúteos · Femoral",
-    accent: "emerald",
+    training_type: "Fuerza & Hipertrofia",
+    estimated_duration_min: 70,
+    target_focus: "Glúteos · Femoral",
+    accent_color: "emerald",
+    is_completed: true,
   },
   {
-    day: "MIÉ",
-    date: "14",
+    day_of_week: 3,
     title: "Velocidad, Reacción & Core",
-    type: "Velocidad",
-    time: "45 min",
-    focus: "Core · Estabilidad",
-    accent: "violet",
+    training_type: "Velocidad & Reacción",
+    estimated_duration_min: 45,
+    target_focus: "Core · Estabilidad",
+    accent_color: "violet",
+    is_completed: true,
   },
   {
-    day: "JUE",
-    date: "15",
+    day_of_week: 4,
     title: "Hipertrofia Tren Inferior",
-    type: "Hipertrofia",
-    time: "65 min",
-    focus: "Glúteos · Cuádriceps",
-    accent: "emerald",
+    training_type: "Fuerza & Hipertrofia",
+    estimated_duration_min: 65,
+    target_focus: "Glúteos · Cuádriceps",
+    accent_color: "emerald",
+    is_completed: true,
   },
   {
-    day: "VIE",
-    date: "16",
+    day_of_week: 5,
     title: "Flexibilidad PNF Spagat",
-    type: "Movilidad",
-    time: "40 min",
-    focus: "Cadera · Isquios",
-    accent: "amber",
+    training_type: "Elasticidad",
+    estimated_duration_min: 40,
+    target_focus: "Cadera · Isquios",
+    accent_color: "amber",
+    is_completed: false,
   },
   {
-    day: "SÁB",
-    date: "17",
+    day_of_week: 6,
     title: "HIIT Específico Kyorugi",
-    type: "HIIT",
-    time: "35 min",
-    focus: "Full body · Cardio",
-    accent: "rose",
+    training_type: "HIIT & Cardio",
+    estimated_duration_min: 35,
+    target_focus: "Full body · Cardio",
+    accent_color: "rose",
+    is_completed: false,
   },
   {
-    day: "DOM",
-    date: "18",
+    day_of_week: 7,
     title: "Recuperación & Movilidad",
-    type: "Recovery",
-    time: "30 min",
-    focus: "Movilidad global",
-    accent: "slate",
+    training_type: "Elasticidad",
+    estimated_duration_min: 30,
+    target_focus: "Movilidad global",
+    accent_color: "slate",
+    is_completed: false,
   },
+]
+
+const DAYS = [
+  { id: 1, day: "LUN", date: "12" },
+  { id: 2, day: "MAR", date: "13" },
+  { id: 3, day: "MIÉ", date: "14" },
+  { id: 4, day: "JUE", date: "15" },
+  { id: 5, day: "VIE", date: "16" },
+  { id: 6, day: "SÁB", date: "17" },
+  { id: 7, day: "DOM", date: "18" },
 ]
 
 function Brand() {
@@ -227,10 +256,12 @@ function Header({
   active,
   setActive,
   openDrawer,
+  openRoutineModal,
 }: {
   active: string
   setActive: (id: string) => void
   openDrawer: () => void
+  openRoutineModal: () => void
 }) {
   return (
     <header className="header">
@@ -250,9 +281,14 @@ function Header({
         <div className="live">
           <i /> Supabase Connected
         </div>
-        <Button onClick={openDrawer}>
-          <Icon name="plus" /> Registrar entreno
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button onClick={openRoutineModal} variant="secondary">
+            <Icon name="plus" /> Nueva rutina
+          </Button>
+          <Button onClick={openDrawer}>
+            <Icon name="play" /> Iniciar entreno
+          </Button>
+        </div>
         <button type="button" className="avatar">
           MR
           <span />
@@ -302,13 +338,45 @@ function SectionTitle({
   )
 }
 
-function GymView({ openDrawer }: { openDrawer: () => void }) {
+function GymView({
+  openDrawer,
+  routines,
+  loading,
+  onOpenCreate,
+  onOpenEdit,
+  onDelete,
+  sets,
+  setSets,
+}: {
+  openDrawer: (routine?: GymRoutine) => void
+  routines: GymRoutine[]
+  loading: boolean
+  onOpenCreate: () => void
+  onOpenEdit: (routine: GymRoutine) => void
+  onDelete: (id: string) => void
+  sets: { kg: string; reps: string; rpe: string }[]
+  setSets: React.Dispatch<
+    React.SetStateAction<{ kg: string; reps: string; rpe: string }[]>
+  >
+}) {
   const [filter, setFilter] = useState("Todos")
-  const [sets, setSets] = useState([
-    { kg: "85", reps: "10", rpe: "8" },
-    { kg: "87.5", reps: "8", rpe: "8.5" },
-    { kg: "87.5", reps: "8", rpe: "9" },
-  ])
+
+  const displayRoutines = routines.length > 0 ? routines : defaultWeek
+
+  const filteredRoutines = displayRoutines.filter((routine) => {
+    if (filter === "Todos") return true
+    return routine.training_type.toLowerCase().includes(filter.toLowerCase())
+  })
+
+  const totalSessions = displayRoutines.length
+  const totalMinutes = displayRoutines.reduce(
+    (acc, r) => acc + (r.estimated_duration_min || 0),
+    0,
+  )
+  const hours = Math.floor(totalMinutes / 60)
+  const mins = totalMinutes % 60
+  const completedCount = displayRoutines.filter((r) => r.is_completed).length
+
   return (
     <main className="page">
       <section className="hero-line">
@@ -327,19 +395,22 @@ function GymView({ openDrawer }: { openDrawer: () => void }) {
           <div>
             <Icon name="flame" />
             <span>
-              <b>5</b> sesiones
+              <b>{totalSessions}</b> sesiones
             </span>
           </div>
           <div>
             <Icon name="clock" />
             <span>
-              <b>5h 35m</b> volumen
+              <b>
+                {hours}h {mins}m
+              </b>{" "}
+              volumen
             </span>
           </div>
           <div>
             <Icon name="trending" />
             <span>
-              <b>+8.4%</b> carga
+              <b>+{completedCount ? Math.round((completedCount / totalSessions) * 100) : 0}%</b> carga
             </span>
           </div>
         </div>
@@ -363,51 +434,84 @@ function GymView({ openDrawer }: { openDrawer: () => void }) {
         <SectionTitle
           eyebrow="PLAN SEMANAL"
           title="Programación multifacética"
-          detail="7 sesiones · 4 completadas"
+          detail={`${totalSessions} sesiones · ${completedCount} completadas`}
         />
-        <div className="week-grid">
-          {week.map((session, index) => (
-            <article
-              className={`day-card accent-${session.accent} ${
-                index === 0 ? "featured" : ""
-              }`}
-              key={session.day}
-            >
-              <div className="day-top">
-                <span>{session.day}</span>
-                <b>{session.date}</b>
-                {index < 4 && (
-                  <i>
-                    <Icon name="check" size={11} />
-                  </i>
-                )}
-              </div>
-              <div className="type-label">{session.type}</div>
-              <h3>{session.title}</h3>
-              <div className="session-meta">
-                <span>
-                  <Icon name="clock" size={13} />
-                  {session.time}
-                </span>
-                <span>
-                  <Icon name="target" size={13} />
-                  {session.focus}
-                </span>
-              </div>
-              <Button
-                variant={index === 0 ? "primary" : "secondary"}
-                onClick={openDrawer}
-              >
-                {index === 0 ? (
-                  <Icon name="play" size={14} />
-                ) : (
-                  <Icon name="plus" size={14} />
-                )}{" "}
-                {index === 0 ? "Iniciar sesión" : "Ver sesión"}
-              </Button>
-            </article>
-          ))}
-        </div>
+
+        {loading ? (
+          <div className="py-12 text-center text-xs text-slate-500">
+            Cargando programación desde Supabase...
+          </div>
+        ) : (
+          <div className="week-grid">
+            {filteredRoutines.map((session, index) => {
+              const dayMeta = DAYS.find((d) => d.id === session.day_of_week) || DAYS[index % 7]
+              return (
+                <article
+                  className={`day-card accent-${session.accent_color || "emerald"} ${
+                    index === 0 ? "featured" : ""
+                  }`}
+                  key={session.id || session.title + index}
+                >
+                  <div className="day-top">
+                    <span>{dayMeta.day}</span>
+                    <b>{dayMeta.date}</b>
+                    {session.is_completed && (
+                      <i>
+                        <Icon name="check" size={11} />
+                      </i>
+                    )}
+                  </div>
+                  <div className="type-label">{session.training_type}</div>
+                  <h3>{session.title}</h3>
+                  <div className="session-meta">
+                    <span>
+                      <Icon name="clock" size={13} />
+                      {session.estimated_duration_min} min
+                    </span>
+                    <span>
+                      <Icon name="target" size={13} />
+                      {session.target_focus || "General"}
+                    </span>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between gap-2 border-t border-slate-800/60 pt-2">
+                    <Button
+                      variant={index === 0 ? "primary" : "secondary"}
+                      onClick={() => openDrawer(session)}
+                    >
+                      {index === 0 ? (
+                        <Icon name="play" size={14} />
+                      ) : (
+                        <Icon name="plus" size={14} />
+                      )}{" "}
+                      {index === 0 ? "Iniciar sesión" : "Ver sesión"}
+                    </Button>
+
+                    {session.id && (
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => onOpenEdit(session)}
+                          className="rounded-lg p-1 text-slate-500 hover:bg-slate-800 hover:text-white"
+                          title="Editar rutina"
+                        >
+                          <Icon name="edit" size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => session.id && onDelete(session.id)}
+                          className="rounded-lg p-1 text-slate-500 hover:bg-slate-800 hover:text-rose-400"
+                          title="Eliminar rutina"
+                        >
+                          <Icon name="trash" size={13} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+        )}
       </section>
 
       <section className="logger card">
@@ -461,11 +565,29 @@ function GymView({ openDrawer }: { openDrawer: () => void }) {
                 <em>kg</em>
               </label>
               <label>
-                <input value={set.reps} readOnly />
+                <input
+                  value={set.reps}
+                  onChange={(e) =>
+                    setSets(
+                      sets.map((s, n) =>
+                        n === i ? { ...s, reps: e.target.value } : s,
+                      ),
+                    )
+                  }
+                />
                 <em>reps</em>
               </label>
               <label>
-                <input value={set.rpe} readOnly />
+                <input
+                  value={set.rpe}
+                  onChange={(e) =>
+                    setSets(
+                      sets.map((s, n) =>
+                        n === i ? { ...s, rpe: e.target.value } : s,
+                      ),
+                    )
+                  }
+                />
                 <em>RPE</em>
               </label>
               <span className="previous">
@@ -805,14 +927,29 @@ function BodyView() {
   )
 }
 
-function WorkoutDrawer({ open, close }: { open: boolean; close: () => void }) {
+function WorkoutDrawer({
+  open,
+  close,
+  activeRoutine,
+  sets,
+  onSaveWorkout,
+}: {
+  open: boolean
+  close: () => void
+  activeRoutine: GymRoutine | null
+  sets: { kg: string; reps: string; rpe: string }[]
+  onSaveWorkout: (notes: string) => void
+}) {
   const [seconds, setSeconds] = useState(90)
   const [running, setRunning] = useState(false)
+  const [notes, setNotes] = useState("")
+
   useEffect(() => {
     if (!running || seconds <= 0) return
     const timer = window.setInterval(() => setSeconds((s) => s - 1), 1000)
     return () => window.clearInterval(timer)
   }, [running, seconds])
+
   return (
     <>
       <button
@@ -825,7 +962,7 @@ function WorkoutDrawer({ open, close }: { open: boolean; close: () => void }) {
         <div className="drawer-top">
           <div>
             <span>SESIÓN ACTIVA</span>
-            <h2>Pliometría & Potencia</h2>
+            <h2>{activeRoutine?.title || "Pliometría & Potencia"}</h2>
           </div>
           <button type="button" onClick={close}>
             <Icon name="close" size={20} />
@@ -866,22 +1003,18 @@ function WorkoutDrawer({ open, close }: { open: boolean; close: () => void }) {
           </div>
         </section>
         <section className="current-exercise">
-          <span>EJERCICIO 02 / 06</span>
-          <h3>Saltos al cajón</h3>
-          <p>4 series × 8 repeticiones · RPE 8</p>
+          <span>EJERCICIO 01 / 03</span>
+          <h3>Hip Thrust con barra</h3>
+          <p>{sets.length} series de trabajo · Registrado en tiempo real</p>
           <div>
-            <span>
-              01<i>12 rep</i>
-            </span>
-            <span>
-              02<i>10 rep</i>
-            </span>
-            <span className="active">
-              03<i>—</i>
-            </span>
-            <span>
-              04<i>—</i>
-            </span>
+            {sets.map((s, idx) => (
+              <span key={idx} className={idx === 0 ? "active" : ""}>
+                {String(idx + 1).padStart(2, "0")}
+                <i>
+                  {s.kg}kg × {s.reps}
+                </i>
+              </span>
+            ))}
           </div>
         </section>
         <section className="notes">
@@ -891,10 +1024,20 @@ function WorkoutDrawer({ open, close }: { open: boolean; close: () => void }) {
               <i /> Sincroniza con Obsidian
             </small>
           </div>
-          <textarea placeholder="¿Cómo se siente el cuerpo hoy? Técnica, molestias, energía..." />
+          <textarea
+            placeholder="¿Cómo se siente el cuerpo hoy? Técnica, molestias, energía..."
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+          />
         </section>
         <div className="drawer-footer">
-          <Button className="save">
+          <Button
+            className="save"
+            onClick={() => {
+              onSaveWorkout(notes)
+              close()
+            }}
+          >
             <Icon name="check" /> Guardar entrenamiento en Supabase
           </Button>
           <p>
@@ -909,17 +1052,281 @@ function WorkoutDrawer({ open, close }: { open: boolean; close: () => void }) {
 export default function GymPage() {
   const [active, setActive] = useState("gym")
   const [drawer, setDrawer] = useState(false)
+  const [activeRoutine, setActiveRoutine] = useState<GymRoutine | null>(null)
+
+  const [routines, setRoutines] = useState<GymRoutine[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const [sets, setSets] = useState([
+    { kg: "85", reps: "10", rpe: "8" },
+    { kg: "87.5", reps: "8", rpe: "8.5" },
+    { kg: "87.5", reps: "8", rpe: "9" },
+  ])
+
+  // Modal para Crear/Editar Rutina
+  const [routineModalOpen, setRoutineModalOpen] = useState(false)
+  const [editingRoutine, setEditingRoutine] = useState<GymRoutine | null>(null)
+  const [routineFormData, setRoutineFormData] = useState<Partial<GymRoutine>>({
+    day_of_week: 1,
+    title: "",
+    training_type: "Fuerza & Hipertrofia",
+    estimated_duration_min: 60,
+    target_focus: "",
+    accent_color: "emerald",
+  })
+
+  const loadRoutines = async () => {
+    setLoading(true)
+    const data = await fetchWeeklyRoutines()
+    setRoutines(data)
+    setLoading(false)
+  }
+
+  useEffect(() => {
+    loadRoutines()
+  }, [])
+
+  const handleOpenCreateModal = () => {
+    setEditingRoutine(null)
+    setRoutineFormData({
+      day_of_week: 1,
+      title: "",
+      training_type: "Fuerza & Hipertrofia",
+      estimated_duration_min: 60,
+      target_focus: "",
+      accent_color: "emerald",
+    })
+    setRoutineModalOpen(true)
+  }
+
+  const handleOpenEditModal = (routine: GymRoutine) => {
+    setEditingRoutine(routine)
+    setRoutineFormData(routine)
+    setRoutineModalOpen(true)
+  }
+
+  const handleSaveRoutineForm = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!routineFormData.title) return
+
+    if (editingRoutine?.id) {
+      await updateGymRoutine(editingRoutine.id, routineFormData)
+    } else {
+      await createGymRoutine(routineFormData as GymRoutine)
+    }
+
+    setRoutineModalOpen(false)
+    loadRoutines()
+  }
+
+  const handleDeleteRoutineItem = async (id: string) => {
+    if (confirm("¿Estás seguro de eliminar esta rutina?")) {
+      await deleteGymRoutine(id)
+      loadRoutines()
+    }
+  }
+
+  const handleOpenDrawerWithRoutine = (routine?: GymRoutine) => {
+    if (routine) {
+      setActiveRoutine(routine)
+    } else if (routines.length > 0) {
+      setActiveRoutine(routines[0])
+    } else {
+      setActiveRoutine(defaultWeek[0])
+    }
+    setDrawer(true)
+  }
+
+  const handleSaveActiveWorkout = async (notes: string) => {
+    if (activeRoutine?.id) {
+      await updateGymRoutine(activeRoutine.id, { is_completed: true })
+    }
+
+    for (let i = 0; i < sets.length; i++) {
+      const s = sets[i]
+      await logGymSet({
+        exercise_id: "hip-thrust-default",
+        routine_id: activeRoutine?.id,
+        set_number: i + 1,
+        weight_kg: parseFloat(s.kg) || 0,
+        reps: parseInt(s.reps) || 0,
+        rpe: parseFloat(s.rpe) || 8,
+        notes: notes,
+      } as GymSetLog)
+    }
+
+    alert("¡Entrenamiento sincronizado y guardado con éxito en Supabase!")
+    loadRoutines()
+  }
+
   return (
     <div className="app-shell">
       <Header
         active={active}
         setActive={setActive}
-        openDrawer={() => setDrawer(true)}
+        openDrawer={() => handleOpenDrawerWithRoutine()}
+        openRoutineModal={handleOpenCreateModal}
       />
-      {active === "gym" && <GymView openDrawer={() => setDrawer(true)} />}
+      {active === "gym" && (
+        <GymView
+          openDrawer={handleOpenDrawerWithRoutine}
+          routines={routines}
+          loading={loading}
+          onOpenCreate={handleOpenCreateModal}
+          onOpenEdit={handleOpenEditModal}
+          onDelete={handleDeleteRoutineItem}
+          sets={sets}
+          setSets={setSets}
+        />
+      )}
       {active === "tkd" && <TkdView />}
       {active === "body" && <BodyView />}
-      <WorkoutDrawer open={drawer} close={() => setDrawer(false)} />
+      <WorkoutDrawer
+        open={drawer}
+        close={() => setDrawer(false)}
+        activeRoutine={activeRoutine}
+        sets={sets}
+        onSaveWorkout={handleSaveActiveWorkout}
+      />
+
+      {/* MODAL CREAR / EDITAR RUTINA */}
+      {routineModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-white">
+                {editingRoutine ? "Editar Rutina" : "Nueva Rutina Semanal"}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setRoutineModalOpen(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                <Icon name="close" size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveRoutineForm} className="space-y-4 text-xs">
+              <div>
+                <label className="mb-1 block font-medium text-slate-400">
+                  Título de la Rutina
+                </label>
+                <input
+                  required
+                  type="text"
+                  placeholder="Ej: Pliometría & Potencia de Cadera"
+                  value={routineFormData.title || ""}
+                  onChange={(e) =>
+                    setRoutineFormData({ ...routineFormData, title: e.target.value })
+                  }
+                  className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block font-medium text-slate-400">
+                    Día de la Semana
+                  </label>
+                  <select
+                    value={routineFormData.day_of_week || 1}
+                    onChange={(e) =>
+                      setRoutineFormData({
+                        ...routineFormData,
+                        day_of_week: parseInt(e.target.value),
+                      })
+                    }
+                    className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
+                  >
+                    {DAYS.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.day}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-1 block font-medium text-slate-400">
+                    Tipo
+                  </label>
+                  <select
+                    value={routineFormData.training_type || "Fuerza & Hipertrofia"}
+                    onChange={(e) =>
+                      setRoutineFormData({
+                        ...routineFormData,
+                        training_type: e.target.value,
+                      })
+                    }
+                    className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
+                  >
+                    {filters
+                      .filter(([f]) => f !== "Todos")
+                      .map(([f]) => (
+                        <option key={f} value={f}>
+                          {f}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block font-medium text-slate-400">
+                    Duración (min)
+                  </label>
+                  <input
+                    type="number"
+                    value={routineFormData.estimated_duration_min || 60}
+                    onChange={(e) =>
+                      setRoutineFormData({
+                        ...routineFormData,
+                        estimated_duration_min: parseInt(e.target.value) || 0,
+                      })
+                    }
+                    className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block font-medium text-slate-400">
+                    Enfoque Muscular
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej: Glúteos · Femoral"
+                    value={routineFormData.target_focus || ""}
+                    onChange={(e) =>
+                      setRoutineFormData({
+                        ...routineFormData,
+                        target_focus: e.target.value,
+                      })
+                    }
+                    className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 border-t border-slate-800 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setRoutineModalOpen(false)}
+                  className="rounded-xl bg-slate-800 px-4 py-2 font-semibold text-slate-300 hover:bg-slate-700"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-xl bg-emerald-500 px-4 py-2 font-semibold text-slate-950 hover:bg-emerald-400"
+                >
+                  {editingRoutine ? "Guardar Cambios" : "Crear Rutina"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
